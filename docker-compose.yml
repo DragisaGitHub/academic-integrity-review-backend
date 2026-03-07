@@ -1,0 +1,48 @@
+services:
+  air-mysql:
+    image: mysql:8
+    container_name: air-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: academic_integrity_review
+      MYSQL_USER: air_user
+      MYSQL_PASSWORD: air_password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3307:3306"
+    volumes:
+      - air-mysql-data:/var/lib/mysql
+    networks:
+      - air-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  air-backend:
+    image: air-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: air-backend
+    restart: unless-stopped
+    environment:
+      MYSQL_URL: jdbc:mysql://air-mysql:3306/academic_integrity_review?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      MYSQL_USERNAME: air_user
+      MYSQL_PASSWORD: air_password
+    ports:
+      - "8081:8080"
+    depends_on:
+      air-mysql:
+        condition: service_healthy
+    networks:
+      - air-network
+
+networks:
+  air-network:
+    name: air-network
+
+volumes:
+  air-mysql-data:
+    name: air-mysql-data

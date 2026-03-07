@@ -1,3 +1,18 @@
 spring:
   application:
     name: academic-integrity-review
+
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/academic_integrity_review?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration

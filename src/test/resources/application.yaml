@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: jdbc:tc:mysql:8.0.36:///academic_integrity_review?TC_REUSABLE=true
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
