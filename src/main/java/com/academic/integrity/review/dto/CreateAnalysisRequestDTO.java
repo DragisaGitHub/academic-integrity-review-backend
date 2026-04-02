@@ -9,5 +9,4 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CreateAnalysisRequestDTO {
 	private Long documentId;
-	private String fullText;
 }

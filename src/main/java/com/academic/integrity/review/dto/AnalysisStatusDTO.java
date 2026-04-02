@@ -1,8 +1,6 @@
 package com.academic.integrity.review.dto;
 
 import com.academic.integrity.review.domain.AnalysisStatus;
-import java.time.Instant;
-import java.time.LocalDate;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -10,13 +8,8 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class AnalysisResponseDTO {
-	private Long id;
-	private Long documentId;
-	private LocalDate analysisDate;
+public class AnalysisStatusDTO {
+	private Long analysisId;
 	private AnalysisStatus analysisStatus;
 	private String errorMessage;
-	private String fullText;
-	private Instant createdAt;
-	private Instant updatedAt;
 }

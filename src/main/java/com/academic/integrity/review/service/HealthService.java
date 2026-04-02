@@ -1,12 +1,7 @@
 package com.academic.integrity.review.service;
 
 import com.academic.integrity.review.dto.HealthResponseDTO;
-import org.springframework.stereotype.Service;
+public interface HealthService {
 
-@Service
-public class HealthService {
-
-	public HealthResponseDTO getHealth() {
-		return new HealthResponseDTO("UP");
-	}
+	HealthResponseDTO getHealth();
 }

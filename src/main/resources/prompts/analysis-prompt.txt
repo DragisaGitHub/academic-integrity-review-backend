@@ -1,0 +1,35 @@
+Analyze the following academic seminar paper text for academic integrity issues.
+
+Respond only with a JSON object containing a single property named "findings".
+The value of "findings" must be an array.
+Each finding object must use only these category values:
+- PLAGIARISM
+- AI_GENERATED_CONTENT
+- CITATION_ISSUE
+- PARAPHRASING
+- OTHER
+
+Each finding object must use only these severity values:
+- LOW
+- MEDIUM
+- HIGH
+- CRITICAL
+
+Each finding object should contain these fields:
+- category
+- severity
+- title
+- explanation
+- excerpt
+- paragraphLocation
+- suggestedAction
+
+Rules:
+- Return valid JSON only.
+- Do not wrap the JSON in markdown.
+- If no meaningful issues are detected, return {"findings":[]}.
+- Be conservative and avoid inventing facts about external sources.
+- Focus on likely unsupported claims, suspicious citations, likely AI-generated passages, paraphrasing concerns, and plagiarism-like passages.
+
+Document text:
+{{DOCUMENT_TEXT}}

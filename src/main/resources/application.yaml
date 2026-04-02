@@ -2,6 +2,11 @@ spring:
   application:
     name: academic-integrity-review
 
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 25MB
+
   datasource:
     url: ${MYSQL_URL:jdbc:mysql://localhost:3306/academic_integrity_review?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
     username: ${MYSQL_USERNAME:root}
@@ -16,3 +21,10 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  model: ${OPENAI_MODEL:gpt-4o-mini}
+  max-tokens: ${OPENAI_MAX_TOKENS:4096}
+  temperature: ${OPENAI_TEMPERATURE:0.2}
+  max-document-characters: ${OPENAI_MAX_DOCUMENT_CHARACTERS:60000}

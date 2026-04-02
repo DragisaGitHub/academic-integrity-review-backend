@@ -6,13 +6,20 @@ import java.time.Instant;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
 	@ExceptionHandler(DuplicateAnalysisException.class)
 	public ResponseEntity<ErrorResponseDTO> handleDuplicateAnalysisException(DuplicateAnalysisException ex, HttpServletRequest request) {
+		return buildErrorResponse(HttpStatus.CONFLICT, ex, request);
+	}
+
+	@ExceptionHandler(AnalysisRetryNotAllowedException.class)
+	public ResponseEntity<ErrorResponseDTO> handleAnalysisRetryNotAllowed(AnalysisRetryNotAllowedException ex, HttpServletRequest request) {
 		return buildErrorResponse(HttpStatus.CONFLICT, ex, request);
 	}
 
@@ -28,12 +35,26 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(RuntimeException.class)
 	public ResponseEntity<ErrorResponseDTO> handleRuntimeException(RuntimeException ex, HttpServletRequest request) {
-		return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, ex, request);
+		return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.", request);
 	}
 
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ErrorResponseDTO> handleException(Exception ex, HttpServletRequest request) {
-		return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, ex, request);
+		return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.", request);
+	}
+
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	@ResponseStatus(HttpStatus.PAYLOAD_TOO_LARGE)
+	public ErrorResponseDTO handleMaxUploadSizeExceeded(
+			MaxUploadSizeExceededException ex,
+			HttpServletRequest request) {
+		return new ErrorResponseDTO(
+				Instant.now(),
+				HttpStatus.PAYLOAD_TOO_LARGE.value(),
+				"Payload Too Large",
+				"Uploaded file exceeds the maximum allowed size.",
+				request.getRequestURI()
+		);
 	}
 
 	private ResponseEntity<ErrorResponseDTO> buildErrorResponse(HttpStatus status, Exception ex, HttpServletRequest request) {
@@ -42,6 +63,10 @@ public class GlobalExceptionHandler {
 			message = status.getReasonPhrase();
 		}
 
+		return buildErrorResponse(status, message, request);
+	}
+
+	private ResponseEntity<ErrorResponseDTO> buildErrorResponse(HttpStatus status, String message, HttpServletRequest request) {
 		ErrorResponseDTO body = new ErrorResponseDTO(
 				Instant.now(),
 				status.value(),
