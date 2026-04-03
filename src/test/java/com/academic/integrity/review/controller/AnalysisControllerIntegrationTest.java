@@ -99,6 +99,17 @@ class AnalysisControllerIntegrationTest {
 		assertThat(analysis.getFullText()).contains("unsupported claims");
 		assertThat(findingRepository.findAllByAnalysis_Id(analysisId)).hasSize(1);
 
+		String documentBody = mockMvc.perform(get("/api/documents/{id}", document.getId()))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		JsonNode documentJson = objectMapper.readTree(documentBody);
+		assertThat(documentJson.path("hasAnalysis").asBoolean()).isTrue();
+		assertThat(documentJson.path("analysisId").asLong()).isEqualTo(analysisId);
+		assertThat(documentJson.path("analysisStatus").asText()).isEqualTo("COMPLETED");
+		assertThat(documentJson.path("analysisErrorMessage").isNull()).isTrue();
+
 		mockMvc.perform(get("/api/analyses/{analysisId}/status", analysisId))
 				.andExpect(status().isOk());
 	}

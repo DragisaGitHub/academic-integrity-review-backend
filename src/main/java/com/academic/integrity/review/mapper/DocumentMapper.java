@@ -10,6 +10,8 @@ import org.mapstruct.Mapping;
 public interface DocumentMapper {
 	@Mapping(target = "hasAnalysis", ignore = true)
 	@Mapping(target = "analysisId", ignore = true)
+	@Mapping(target = "analysisStatus", ignore = true)
+	@Mapping(target = "analysisErrorMessage", ignore = true)
 	@Mapping(target = "hasReviewNote", ignore = true)
 	@Mapping(target = "finalDecision", ignore = true)
 	DocumentResponseDTO toDto(Document document);

@@ -23,6 +23,11 @@ public class GlobalExceptionHandler {
 		return buildErrorResponse(HttpStatus.CONFLICT, ex, request);
 	}
 
+	@ExceptionHandler(DocumentDeletionNotAllowedException.class)
+	public ResponseEntity<ErrorResponseDTO> handleDocumentDeletionNotAllowed(DocumentDeletionNotAllowedException ex, HttpServletRequest request) {
+		return buildErrorResponse(HttpStatus.CONFLICT, ex, request);
+	}
+
 	@ExceptionHandler(IllegalArgumentException.class)
 	public ResponseEntity<ErrorResponseDTO> handleIllegalArgumentException(IllegalArgumentException ex, HttpServletRequest request) {
 		return buildErrorResponse(HttpStatus.BAD_REQUEST, ex, request);

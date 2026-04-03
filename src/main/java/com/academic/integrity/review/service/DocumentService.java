@@ -20,4 +20,6 @@ public interface DocumentService {
 	DocumentResponseDTO getDocumentById(Long id);
 
 	DocumentResponseDTO uploadDocument(MultipartFile file, DocumentUploadRequestDTO request);
+
+	void deleteDocument(Long id);
 }

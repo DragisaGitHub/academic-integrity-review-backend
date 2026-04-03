@@ -1,6 +1,7 @@
 package com.academic.integrity.review.service.impl;
 
 import com.academic.integrity.review.domain.Analysis;
+import com.academic.integrity.review.domain.AnalysisStatus;
 import com.academic.integrity.review.domain.Document;
 import com.academic.integrity.review.domain.FinalDecision;
 import com.academic.integrity.review.domain.ReviewNote;
@@ -8,10 +9,12 @@ import com.academic.integrity.review.domain.ReviewPriority;
 import com.academic.integrity.review.domain.ReviewStatus;
 import com.academic.integrity.review.dto.DocumentResponseDTO;
 import com.academic.integrity.review.dto.DocumentUploadRequestDTO;
+import com.academic.integrity.review.exception.DocumentDeletionNotAllowedException;
 import com.academic.integrity.review.exception.ResourceNotFoundException;
 import com.academic.integrity.review.mapper.DocumentMapper;
 import com.academic.integrity.review.repository.AnalysisRepository;
 import com.academic.integrity.review.repository.DocumentRepository;
+import com.academic.integrity.review.repository.FindingRepository;
 import com.academic.integrity.review.repository.ReviewNoteRepository;
 import com.academic.integrity.review.service.DocumentService;
 import java.io.IOException;
@@ -29,6 +32,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -41,6 +45,7 @@ public class DocumentServiceImpl implements DocumentService {
 
 	private final DocumentRepository documentRepository;
 	private final AnalysisRepository analysisRepository;
+	private final FindingRepository findingRepository;
 	private final ReviewNoteRepository reviewNoteRepository;
 	private final DocumentMapper documentMapper;
 
@@ -118,6 +123,36 @@ public class DocumentServiceImpl implements DocumentService {
 		return dto;
 	}
 
+	@Override
+	@Transactional
+	public void deleteDocument(Long id) {
+		Document document = documentRepository.findById(id)
+				.orElseThrow(() -> new ResourceNotFoundException("Document not found: id=" + id));
+
+		Analysis analysis = analysisRepository.findByDocument_Id(id).orElse(null);
+		if (analysis != null && isDeleteBlocked(analysis.getAnalysisStatus())) {
+			throw new DocumentDeletionNotAllowedException(
+					"Document cannot be deleted while analysis is in progress");
+		}
+
+		String storedPath = normalize(document.getStoredPath());
+
+		ReviewNote reviewNote = reviewNoteRepository.findByDocument_Id(id).orElse(null);
+		if (reviewNote != null) {
+			reviewNoteRepository.delete(reviewNote);
+		}
+
+		if (analysis != null) {
+			findingRepository.deleteByAnalysis_Id(analysis.getId());
+			analysisRepository.delete(analysis);
+		}
+
+		documentRepository.delete(document);
+		documentRepository.flush();
+
+		deleteStoredFile(storedPath);
+	}
+
 	private void enrichDocumentDtos(List<DocumentResponseDTO> dtos) {
 		List<Long> documentIds = dtos.stream()
 				.map(DocumentResponseDTO::getId)
@@ -127,11 +162,11 @@ public class DocumentServiceImpl implements DocumentService {
 			return;
 		}
 
-		Map<Long, Long> analysisIdByDocumentId = analysisRepository.findAllByDocument_IdIn(documentIds).stream()
+		Map<Long, Analysis> analysisByDocumentId = analysisRepository.findAllByDocument_IdIn(documentIds).stream()
 				.filter(analysis -> analysis.getDocument() != null && analysis.getDocument().getId() != null)
 				.collect(Collectors.toMap(
 						analysis -> analysis.getDocument().getId(),
-						Analysis::getId,
+						Function.identity(),
 						(existing, replacement) -> existing
 				));
 
@@ -149,9 +184,11 @@ public class DocumentServiceImpl implements DocumentService {
 				continue;
 			}
 
-			Long analysisId = analysisIdByDocumentId.get(documentId);
-			dto.setHasAnalysis(analysisId != null);
-			dto.setAnalysisId(analysisId);
+			Analysis analysis = analysisByDocumentId.get(documentId);
+			dto.setHasAnalysis(analysis != null);
+			dto.setAnalysisId(analysis != null ? analysis.getId() : null);
+			dto.setAnalysisStatus(analysis != null ? analysis.getAnalysisStatus() : null);
+			dto.setAnalysisErrorMessage(analysis != null ? analysis.getErrorMessage() : null);
 
 			ReviewNote note = reviewNoteByDocumentId.get(documentId);
 			dto.setHasReviewNote(note != null);
@@ -241,5 +278,24 @@ public class DocumentServiceImpl implements DocumentService {
 		}
 
 		return Sort.by(direction, sortField);
+	}
+
+	private static boolean isDeleteBlocked(AnalysisStatus status) {
+		return status == AnalysisStatus.PENDING
+				|| status == AnalysisStatus.EXTRACTING
+				|| status == AnalysisStatus.ANALYZING;
+	}
+
+	private static void deleteStoredFile(String storedPath) {
+		if (storedPath == null) {
+			return;
+		}
+
+		Path path = Paths.get(storedPath);
+		try {
+			Files.deleteIfExists(path);
+		} catch (IOException ex) {
+			throw new IllegalStateException("Failed to delete stored file: " + path, ex);
+		}
 	}
 }

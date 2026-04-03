@@ -6,6 +6,8 @@ import com.academic.integrity.review.service.DocumentService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -43,5 +45,11 @@ public class DocumentController {
 			@RequestParam("file") MultipartFile file,
 			@ModelAttribute DocumentUploadRequestDTO request) {
 		return documentService.uploadDocument(file, request);
+	}
+
+	@DeleteMapping("/{id}")
+	public ResponseEntity<Void> deleteDocument(@PathVariable Long id) {
+		documentService.deleteDocument(id);
+		return ResponseEntity.noContent().build();
 	}
 }
