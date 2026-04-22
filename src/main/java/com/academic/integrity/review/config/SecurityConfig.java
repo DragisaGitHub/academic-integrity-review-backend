@@ -2,7 +2,6 @@ package com.academic.integrity.review.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -19,26 +18,13 @@ public class SecurityConfig {
 		http.csrf(AbstractHttpConfigurer::disable);
 		http.cors(Customizer.withDefaults());
 		http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+		http.httpBasic(AbstractHttpConfigurer::disable);
+		http.formLogin(AbstractHttpConfigurer::disable);
+		http.logout(AbstractHttpConfigurer::disable);
 
 		http.authorizeHttpRequests(auth -> auth
-				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-				.requestMatchers(
-						"/api/health",
-						"/actuator/health",
-						"/actuator/health/**",
-						"/api/documents/**",
-						"/api/analyses/**",
-						"/api/notifications/**",
-						"/api/settings/**",
-						"/swagger-ui.html",
-						"/swagger-ui/**",
-						"/v3/api-docs/**"
-				).permitAll()
-				.anyRequest().authenticated()
+				.anyRequest().permitAll()
 		);
-
-		http.httpBasic(Customizer.withDefaults());
-		http.formLogin(AbstractHttpConfigurer::disable);
 
 		return http.build();
 	}
