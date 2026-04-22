@@ -1,5 +1,6 @@
 package com.academic.integrity.review.service.impl;
 
+import com.academic.integrity.review.config.StorageProperties;
 import com.academic.integrity.review.domain.Analysis;
 import com.academic.integrity.review.domain.AnalysisStatus;
 import com.academic.integrity.review.domain.Document;
@@ -42,7 +43,6 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class DocumentServiceImpl implements DocumentService {
 
-	private static final Path UPLOADS_DIR = Paths.get("uploads");
 	private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "docx", "txt");
 	private static final DateTimeFormatter CSV_DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
 
@@ -51,6 +51,7 @@ public class DocumentServiceImpl implements DocumentService {
 	private final FindingRepository findingRepository;
 	private final ReviewNoteRepository reviewNoteRepository;
 	private final DocumentMapper documentMapper;
+	private final StorageProperties storageProperties;
 
 	@Override
 	public List<DocumentResponseDTO> getAllDocuments() {
@@ -258,23 +259,28 @@ public class DocumentServiceImpl implements DocumentService {
 	private record StoredFileInfo(String storedFilename, String storedPath) {
 	}
 
-	private static StoredFileInfo storeFile(MultipartFile file) {
+	private StoredFileInfo storeFile(MultipartFile file) {
 		String originalFilename = StringUtils.cleanPath(Objects.toString(file.getOriginalFilename(), ""));
 		if (originalFilename.isBlank()) {
 			throw new IllegalArgumentException("Original filename is required");
 		}
 		String safeFilename = originalFilename.replace("\\", "_").replace("/", "_");
 		String storedFilename = System.currentTimeMillis() + "-" + safeFilename;
-		Path target = UPLOADS_DIR.resolve(storedFilename);
+		Path uploadsDir = resolveUploadsDir();
+		Path target = uploadsDir.resolve(storedFilename);
 		try {
-			Files.createDirectories(UPLOADS_DIR);
+			Files.createDirectories(uploadsDir);
 			file.transferTo(target);
 		} catch (IOException ex) {
 			throw new IllegalArgumentException("Failed to store file", ex);
 		}
 
-		String storedPath = UPLOADS_DIR.resolve(storedFilename).toString().replace("\\", "/");
+		String storedPath = target.toString().replace("\\", "/");
 		return new StoredFileInfo(storedFilename, storedPath);
+	}
+
+	private Path resolveUploadsDir() {
+		return storageProperties.getUploadsDir().normalize();
 	}
 
 	private static String getExtension(String filename) {

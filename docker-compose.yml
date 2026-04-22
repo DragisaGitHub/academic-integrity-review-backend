@@ -4,10 +4,10 @@ services:
     container_name: air-mysql
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: academic_integrity_review
-      MYSQL_USER: air_user
-      MYSQL_PASSWORD: air_password
-      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-academic_integrity_review}
+      MYSQL_USER: ${MYSQL_USERNAME:-air_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-air_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
     ports:
       - "3307:3306"
     volumes:
@@ -30,21 +30,32 @@ services:
     env_file:
       - .env
     environment:
-      MYSQL_URL: jdbc:mysql://air-mysql:3306/academic_integrity_review?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      MYSQL_USERNAME: air_user
-      MYSQL_PASSWORD: air_password
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      MYSQL_URL: jdbc:mysql://air-mysql:3306/${MYSQL_DATABASE:-academic_integrity_review}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      MYSQL_USERNAME: ${MYSQL_USERNAME:-air_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-air_password}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      OPENAI_MODEL: ${OPENAI_MODEL}
-      OPENAI_MAX_TOKENS: ${OPENAI_MAX_TOKENS}
-      OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE}
-      OPENAI_MAX_DOCUMENT_CHARACTERS: ${OPENAI_MAX_DOCUMENT_CHARACTERS}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_MAX_TOKENS: ${OPENAI_MAX_TOKENS:-1500}
+      OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE:-0.0}
+      OPENAI_MAX_DOCUMENT_CHARACTERS: ${OPENAI_MAX_DOCUMENT_CHARACTERS:-25000}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      APP_UPLOADS_DIR: ${APP_UPLOADS_DIR:-/app/uploads}
     ports:
       - "8081:8080"
+    volumes:
+      - air-backend-uploads:/app/uploads
     depends_on:
       air-mysql:
         condition: service_healthy
     networks:
       - air-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/actuator/health/readiness || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
 networks:
   air-network:
@@ -53,3 +64,5 @@ networks:
 volumes:
   air-mysql-data:
     name: air-mysql-data
+  air-backend-uploads:
+    name: air-backend-uploads
