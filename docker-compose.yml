@@ -27,10 +27,17 @@ services:
       dockerfile: Dockerfile
     container_name: air-backend
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       MYSQL_URL: jdbc:mysql://air-mysql:3306/academic_integrity_review?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       MYSQL_USERNAME: air_user
       MYSQL_PASSWORD: air_password
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL}
+      OPENAI_MAX_TOKENS: ${OPENAI_MAX_TOKENS}
+      OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE}
+      OPENAI_MAX_DOCUMENT_CHARACTERS: ${OPENAI_MAX_DOCUMENT_CHARACTERS}
     ports:
       - "8081:8080"
     depends_on:

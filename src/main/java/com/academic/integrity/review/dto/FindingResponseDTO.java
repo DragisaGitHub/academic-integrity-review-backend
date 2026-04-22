@@ -20,6 +20,9 @@ public class FindingResponseDTO {
 	private String excerpt;
 	private String paragraphLocation;
 	private String suggestedAction;
+	private String professorNotes;
+	private boolean reviewed;
+	private boolean flaggedForFollowUp;
 	private Instant createdAt;
 	private Instant updatedAt;
 }

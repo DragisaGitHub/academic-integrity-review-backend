@@ -38,8 +38,26 @@ public class Document {
 	@Column(name = "course", nullable = false)
 	private String course;
 
+	@Column(name = "academic_year")
+	private String academicYear;
+
 	@Column(name = "submission_date")
 	private LocalDate submissionDate;
+
+	@Column(name = "original_filename")
+	private String originalFilename;
+
+	@Column(name = "stored_filename")
+	private String storedFilename;
+
+	@Column(name = "stored_path")
+	private String storedPath;
+
+	@Column(name = "content_type")
+	private String contentType;
+
+	@Column(name = "file_size")
+	private Long fileSize;
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "review_priority", nullable = false)

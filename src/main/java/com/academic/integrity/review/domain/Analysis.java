@@ -2,6 +2,8 @@ package com.academic.integrity.review.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -41,6 +43,16 @@ public class Analysis {
 	@Column(name = "full_text", columnDefinition = "LONGTEXT")
 	private String fullText;
 
+	@Enumerated(EnumType.STRING)
+	@Column(name = "analysis_status", nullable = false)
+	private AnalysisStatus analysisStatus = AnalysisStatus.PENDING;
+
+	@Column(name = "error_message", columnDefinition = "LONGTEXT")
+	private String errorMessage;
+
+	@Column(name = "analysis_notes", columnDefinition = "LONGTEXT")
+	private String analysisNotes;
+
 	@OneToMany(mappedBy = "analysis")
 	private List<Finding> findings = new ArrayList<>();
 
@@ -49,6 +61,18 @@ public class Analysis {
 
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
+
+	@Column(name = "started_at")
+	private Instant startedAt;
+
+	@Column(name = "completed_at")
+	private Instant completedAt;
+
+	@Column(name = "model_name")
+	private String modelName;
+
+	@Column(name = "total_tokens_used")
+	private Integer totalTokensUsed;
 
 	@PrePersist
 	void onCreate() {

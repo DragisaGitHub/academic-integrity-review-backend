@@ -12,5 +12,6 @@ public class DocumentUploadRequestDTO {
 	private String title;
 	private String studentName;
 	private String course;
+	private String academicYear;
 	private ReviewPriority reviewPriority;
 }

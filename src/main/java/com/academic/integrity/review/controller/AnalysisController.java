@@ -1,10 +1,15 @@
 package com.academic.integrity.review.controller;
 
+import com.academic.integrity.review.dto.AnalysisNotesResponseDTO;
+import com.academic.integrity.review.dto.AnalysisNotesUpsertRequestDTO;
 import com.academic.integrity.review.dto.AnalysisResponseDTO;
+import com.academic.integrity.review.dto.AnalysisStatusDTO;
 import com.academic.integrity.review.dto.CreateAnalysisRequestDTO;
 import com.academic.integrity.review.service.AnalysisService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,13 +24,40 @@ public class AnalysisController {
 
 	private final AnalysisService analysisService;
 
+	@GetMapping
+	public List<AnalysisResponseDTO> getAllAnalyses() {
+		return analysisService.getAllAnalyses();
+	}
+
 	@GetMapping("/document/{documentId}")
 	public AnalysisResponseDTO getAnalysisByDocumentId(@PathVariable Long documentId) {
 		return analysisService.getAnalysisByDocumentId(documentId);
 	}
 
+	@GetMapping("/{analysisId}/status")
+	public ResponseEntity<AnalysisStatusDTO> getAnalysisStatus(@PathVariable Long analysisId) {
+		return ResponseEntity.ok(analysisService.getAnalysisStatus(analysisId));
+	}
+
+	@GetMapping("/{analysisId}/notes")
+	public ResponseEntity<AnalysisNotesResponseDTO> getAnalysisNotes(@PathVariable Long analysisId) {
+		return ResponseEntity.ok(analysisService.getAnalysisNotes(analysisId));
+	}
+
 	@PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-	public AnalysisResponseDTO createAnalysis(@RequestBody CreateAnalysisRequestDTO request) {
-		return analysisService.createAnalysis(request);
+	public ResponseEntity<AnalysisResponseDTO> createAnalysis(@RequestBody CreateAnalysisRequestDTO request) {
+		return ResponseEntity.accepted().body(analysisService.createAnalysis(request));
+	}
+
+	@PostMapping("/{analysisId}/retry")
+	public ResponseEntity<AnalysisResponseDTO> retryAnalysis(@PathVariable Long analysisId) {
+		return ResponseEntity.accepted().body(analysisService.retryAnalysis(analysisId));
+	}
+
+	@PostMapping(path = "/{analysisId}/notes", consumes = MediaType.APPLICATION_JSON_VALUE)
+	public ResponseEntity<AnalysisNotesResponseDTO> upsertAnalysisNotes(
+			@PathVariable Long analysisId,
+			@RequestBody AnalysisNotesUpsertRequestDTO request) {
+		return ResponseEntity.ok(analysisService.upsertAnalysisNotes(analysisId, request));
 	}
 }

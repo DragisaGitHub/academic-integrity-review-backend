@@ -13,6 +13,7 @@ Architecture rules:
 
 controller
 service
+impl
 repository
 domain
 dto

@@ -1,5 +1,6 @@
 package com.academic.integrity.review.dto;
 
+import com.academic.integrity.review.domain.AnalysisStatus;
 import com.academic.integrity.review.domain.FinalDecision;
 import com.academic.integrity.review.domain.ReviewPriority;
 import com.academic.integrity.review.domain.ReviewStatus;
@@ -17,11 +18,14 @@ public class DocumentResponseDTO {
 	private String title;
 	private String studentName;
 	private String course;
+	private String academicYear;
 	private LocalDate submissionDate;
 	private ReviewPriority reviewPriority;
 	private ReviewStatus reviewStatus;
 	private boolean hasAnalysis;
 	private Long analysisId;
+	private AnalysisStatus analysisStatus;
+	private String analysisErrorMessage;
 	private boolean hasReviewNote;
 	private FinalDecision finalDecision;
 	private Instant createdAt;
