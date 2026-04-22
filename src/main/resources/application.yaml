@@ -25,6 +25,6 @@ spring:
 openai:
   api-key: ${OPENAI_API_KEY:}
   model: ${OPENAI_MODEL:gpt-4o-mini}
-  max-tokens: ${OPENAI_MAX_TOKENS:4096}
+  max-tokens: ${OPENAI_MAX_TOKENS:1500}
   temperature: ${OPENAI_TEMPERATURE:0.0}
-  max-document-characters: ${OPENAI_MAX_DOCUMENT_CHARACTERS:60000}
+  max-document-characters: ${OPENAI_MAX_DOCUMENT_CHARACTERS:25000}

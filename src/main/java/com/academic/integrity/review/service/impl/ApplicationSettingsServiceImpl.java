@@ -94,7 +94,7 @@ public class ApplicationSettingsServiceImpl implements ApplicationSettingsServic
 		settings.setLightThemeEnabled(false);
 		settings.setDisplayDensity(DisplayDensity.COMFORTABLE);
 		settings.setShowSeverityBadges(true);
-		settings.setReadingLayout(ReadingLayout.COMFORTABLE);
+		settings.setReadingLayout(ReadingLayout.DEFAULT);
 		return settings;
 	}
 }

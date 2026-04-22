@@ -8,6 +8,7 @@ import com.academic.integrity.review.domain.ReviewNote;
 import com.academic.integrity.review.domain.ReviewPriority;
 import com.academic.integrity.review.domain.ReviewStatus;
 import com.academic.integrity.review.dto.DocumentResponseDTO;
+import com.academic.integrity.review.dto.DocumentUpdateRequestDTO;
 import com.academic.integrity.review.dto.DocumentUploadRequestDTO;
 import com.academic.integrity.review.exception.DocumentDeletionNotAllowedException;
 import com.academic.integrity.review.exception.ResourceNotFoundException;
@@ -22,6 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +44,7 @@ public class DocumentServiceImpl implements DocumentService {
 
 	private static final Path UPLOADS_DIR = Paths.get("uploads");
 	private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "docx", "txt");
+	private static final DateTimeFormatter CSV_DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
 
 	private final DocumentRepository documentRepository;
 	private final AnalysisRepository analysisRepository;
@@ -108,6 +111,7 @@ public class DocumentServiceImpl implements DocumentService {
 		document.setTitle(normalizeRequired(request.getTitle(), "title"));
 		document.setStudentName(normalizeRequired(request.getStudentName(), "studentName"));
 		document.setCourse(normalizeRequired(request.getCourse(), "course"));
+		document.setAcademicYear(normalize(request.getAcademicYear()));
 		document.setReviewPriority(request.getReviewPriority() != null ? request.getReviewPriority() : ReviewPriority.MEDIUM);
 		document.setReviewStatus(ReviewStatus.PENDING);
 		document.setSubmissionDate(LocalDate.now());
@@ -125,6 +129,55 @@ public class DocumentServiceImpl implements DocumentService {
 
 	@Override
 	@Transactional
+	public DocumentResponseDTO updateDocument(Long id, DocumentUpdateRequestDTO request) {
+		if (request == null) {
+			throw new IllegalArgumentException("Request body is required");
+		}
+
+		Document document = documentRepository.findById(id)
+				.orElseThrow(() -> new ResourceNotFoundException("Document not found: id=" + id));
+
+		document.setTitle(normalizeRequired(request.getTitle(), "title"));
+		document.setStudentName(normalizeRequired(request.getStudentName(), "studentName"));
+		document.setCourse(normalizeRequired(request.getCourse(), "course"));
+		document.setAcademicYear(normalize(request.getAcademicYear()));
+		document.setReviewPriority(request.getReviewPriority() != null ? request.getReviewPriority() : ReviewPriority.MEDIUM);
+
+		Document saved = documentRepository.save(document);
+		DocumentResponseDTO dto = documentMapper.toDto(saved);
+		enrichDocumentDtos(List.of(dto));
+		return dto;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public String exportDocumentsCsv() {
+		List<DocumentResponseDTO> documents = getAllDocuments();
+		StringBuilder csv = new StringBuilder();
+		csv.append("id,title,studentName,course,academicYear,submissionDate,reviewPriority,reviewStatus,hasAnalysis,analysisId,analysisStatus,analysisErrorMessage,hasReviewNote,finalDecision")
+				.append('\n');
+		for (DocumentResponseDTO document : documents) {
+			csv.append(csvValue(document.getId()))
+					.append(',').append(csvValue(document.getTitle()))
+					.append(',').append(csvValue(document.getStudentName()))
+					.append(',').append(csvValue(document.getCourse()))
+					.append(',').append(csvValue(document.getAcademicYear()))
+					.append(',').append(csvValue(document.getSubmissionDate() != null ? document.getSubmissionDate().format(CSV_DATE_FORMATTER) : null))
+					.append(',').append(csvValue(document.getReviewPriority()))
+					.append(',').append(csvValue(document.getReviewStatus()))
+					.append(',').append(csvValue(document.isHasAnalysis()))
+					.append(',').append(csvValue(document.getAnalysisId()))
+					.append(',').append(csvValue(document.getAnalysisStatus()))
+					.append(',').append(csvValue(document.getAnalysisErrorMessage()))
+					.append(',').append(csvValue(document.isHasReviewNote()))
+					.append(',').append(csvValue(document.getFinalDecision()))
+					.append('\n');
+		}
+		return csv.toString();
+	}
+
+	@Override
+	@Transactional
 	public void deleteDocument(Long id) {
 		Document document = documentRepository.findById(id)
 				.orElseThrow(() -> new ResourceNotFoundException("Document not found: id=" + id));
@@ -137,12 +190,9 @@ public class DocumentServiceImpl implements DocumentService {
 
 		String storedPath = normalize(document.getStoredPath());
 
-		ReviewNote reviewNote = reviewNoteRepository.findByDocument_Id(id).orElse(null);
-		if (reviewNote != null) {
-			reviewNoteRepository.delete(reviewNote);
-		}
+        reviewNoteRepository.findByDocument_Id(id).ifPresent(reviewNoteRepository::delete);
 
-		if (analysis != null) {
+        if (analysis != null) {
 			findingRepository.deleteByAnalysis_Id(analysis.getId());
 			analysisRepository.delete(analysis);
 		}
@@ -297,5 +347,14 @@ public class DocumentServiceImpl implements DocumentService {
 		} catch (IOException ex) {
 			throw new IllegalStateException("Failed to delete stored file: " + path, ex);
 		}
+	}
+
+	private static String csvValue(Object value) {
+		if (value == null) {
+			return "";
+		}
+		String text = String.valueOf(value);
+		String escaped = text.replace("\"", "\"\"");
+		return '"' + escaped + '"';
 	}
 }

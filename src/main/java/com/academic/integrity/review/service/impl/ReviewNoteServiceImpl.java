@@ -2,6 +2,7 @@ package com.academic.integrity.review.service.impl;
 
 import com.academic.integrity.review.domain.Document;
 import com.academic.integrity.review.domain.ReviewNote;
+import com.academic.integrity.review.domain.ReviewStatus;
 import com.academic.integrity.review.dto.ReviewNoteResponseDTO;
 import com.academic.integrity.review.dto.ReviewNoteUpsertRequestDTO;
 import com.academic.integrity.review.exception.ResourceNotFoundException;
@@ -52,8 +53,15 @@ public class ReviewNoteServiceImpl implements ReviewNoteService {
 		reviewNote.setFactualIssuesDiscussed(request.isFactualIssuesDiscussed());
 		reviewNote.setFinalReviewCompleted(request.isFinalReviewCompleted());
 		reviewNote.setFinalDecision(request.getFinalDecision());
+		document.setReviewStatus(resolveReviewStatus(reviewNote));
 
 		ReviewNote saved = reviewNoteRepository.save(reviewNote);
 		return reviewNoteMapper.toDto(saved);
+	}
+
+	private static ReviewStatus resolveReviewStatus(ReviewNote reviewNote) {
+		return reviewNote.isFinalReviewCompleted()
+				? ReviewStatus.REVIEWED
+				: ReviewStatus.IN_REVIEW;
 	}
 }

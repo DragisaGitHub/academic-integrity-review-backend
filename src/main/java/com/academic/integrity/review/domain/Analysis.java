@@ -50,6 +50,9 @@ public class Analysis {
 	@Column(name = "error_message", columnDefinition = "LONGTEXT")
 	private String errorMessage;
 
+	@Column(name = "analysis_notes", columnDefinition = "LONGTEXT")
+	private String analysisNotes;
+
 	@OneToMany(mappedBy = "analysis")
 	private List<Finding> findings = new ArrayList<>();
 

@@ -3,6 +3,7 @@ package com.academic.integrity.review.controller;
 import com.academic.integrity.review.dto.ApplicationSettingsResponseDTO;
 import com.academic.integrity.review.dto.ApplicationSettingsUpsertRequestDTO;
 import com.academic.integrity.review.service.ApplicationSettingsService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,7 +26,7 @@ public class ApplicationSettingsController {
 
 	@PostMapping
 	public ResponseEntity<ApplicationSettingsResponseDTO> upsertSettings(
-			@RequestBody ApplicationSettingsUpsertRequestDTO request) {
+			@Valid @RequestBody ApplicationSettingsUpsertRequestDTO request) {
 		return ResponseEntity.ok(applicationSettingsService.upsertSettings(request));
 	}
 }

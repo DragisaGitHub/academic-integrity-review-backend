@@ -56,6 +56,15 @@ public class Finding {
 	@Column(name = "suggested_action", columnDefinition = "LONGTEXT")
 	private String suggestedAction;
 
+	@Column(name = "professor_notes", columnDefinition = "LONGTEXT")
+	private String professorNotes;
+
+	@Column(name = "reviewed", nullable = false)
+	private boolean reviewed;
+
+	@Column(name = "flagged_for_follow_up", nullable = false)
+	private boolean flaggedForFollowUp;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 

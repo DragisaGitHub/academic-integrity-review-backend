@@ -80,8 +80,8 @@ public class ApplicationSettings {
 	private boolean lightThemeEnabled;
 
 	@Enumerated(EnumType.STRING)
-	@Column(name = "reading_layout")
-	private ReadingLayout readingLayout;
+	@Column(name = "reading_layout", nullable = false)
+	private ReadingLayout readingLayout = ReadingLayout.DEFAULT;
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;

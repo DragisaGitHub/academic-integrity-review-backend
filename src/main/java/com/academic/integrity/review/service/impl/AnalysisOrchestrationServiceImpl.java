@@ -9,6 +9,7 @@ import com.academic.integrity.review.service.AnalysisOrchestrationService;
 import com.academic.integrity.review.service.DocumentTextExtractionService;
 import com.academic.integrity.review.service.FindingGenerationService;
 import com.academic.integrity.review.service.LlmClientService;
+import com.academic.integrity.review.service.NotificationService;
 import com.academic.integrity.review.service.PromptTemplateService;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class AnalysisOrchestrationServiceImpl implements AnalysisOrchestrationSe
 	private final PromptTemplateService promptTemplateService;
 	private final LlmClientService llmClientService;
 	private final FindingGenerationService findingGenerationService;
+	private final NotificationService notificationService;
 
 	@Override
 	@Async("analysisTaskExecutor")
@@ -56,11 +58,14 @@ public class AnalysisOrchestrationServiceImpl implements AnalysisOrchestrationSe
 			analysis.setTotalTokensUsed(result.totalTokens());
 			analysis.setCompletedAt(Instant.now());
 			updateAnalysis(analysis, AnalysisStatus.COMPLETED, null);
+			notificationService.createAnalysisCompletedNotification(analysis);
 			log.info("Analysis {} completed", analysisId);
 		} catch (Exception ex) {
 			log.error("Analysis {} failed", analysisId, ex);
 			analysis.setCompletedAt(Instant.now());
-			updateAnalysis(analysis, AnalysisStatus.FAILED, failureMessage(ex));
+			String errorMessage = failureMessage(ex);
+			updateAnalysis(analysis, AnalysisStatus.FAILED, errorMessage);
+			notificationService.createAnalysisFailedNotification(analysis, errorMessage);
 		}
 	}
 

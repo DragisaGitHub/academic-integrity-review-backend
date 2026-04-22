@@ -36,7 +36,7 @@ public class LlmClientServiceImpl implements LlmClientService {
 				.connectTimeout(Duration.ofSeconds(30))
 				.build();
 		JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
-		requestFactory.setReadTimeout(Duration.ofSeconds(90));
+		requestFactory.setReadTimeout(Duration.ofSeconds(240));
 
 		this.openAiProperties = openAiProperties;
 		this.restClient = restClientBuilder

@@ -3,6 +3,8 @@ package com.academic.integrity.review.service.impl;
 import com.academic.integrity.review.domain.Analysis;
 import com.academic.integrity.review.domain.AnalysisStatus;
 import com.academic.integrity.review.domain.Document;
+import com.academic.integrity.review.dto.AnalysisNotesResponseDTO;
+import com.academic.integrity.review.dto.AnalysisNotesUpsertRequestDTO;
 import com.academic.integrity.review.dto.AnalysisResponseDTO;
 import com.academic.integrity.review.dto.AnalysisStatusDTO;
 import com.academic.integrity.review.dto.CreateAnalysisRequestDTO;
@@ -15,7 +17,9 @@ import com.academic.integrity.review.repository.DocumentRepository;
 import com.academic.integrity.review.service.AnalysisOrchestrationService;
 import com.academic.integrity.review.service.AnalysisService;
 import java.time.LocalDate;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +31,14 @@ public class AnalysisServiceImpl implements AnalysisService {
 	private final DocumentRepository documentRepository;
 	private final AnalysisMapper analysisMapper;
 	private final AnalysisOrchestrationService analysisOrchestrationService;
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<AnalysisResponseDTO> getAllAnalyses() {
+		return analysisRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt")).stream()
+				.map(analysisMapper::toDto)
+				.toList();
+	}
 
 	@Override
 	@Transactional(readOnly = true)
@@ -44,6 +56,17 @@ public class AnalysisServiceImpl implements AnalysisService {
 		Analysis analysis = analysisRepository.findById(analysisId)
 				.orElseThrow(() -> new ResourceNotFoundException("Analysis not found: id=" + analysisId));
 		return new AnalysisStatusDTO(analysis.getId(), analysis.getAnalysisStatus(), analysis.getErrorMessage());
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public AnalysisNotesResponseDTO getAnalysisNotes(Long analysisId) {
+		Analysis analysis = analysisRepository.findById(analysisId)
+				.orElseThrow(() -> new ResourceNotFoundException("Analysis not found: id=" + analysisId));
+		if (analysis.getAnalysisNotes() == null || analysis.getAnalysisNotes().isBlank()) {
+			throw new ResourceNotFoundException("Analysis notes not found for analysis id=" + analysisId);
+		}
+		return new AnalysisNotesResponseDTO(analysis.getId(), analysis.getAnalysisNotes(), analysis.getUpdatedAt());
 	}
 
 	@Override
@@ -95,5 +118,27 @@ public class AnalysisServiceImpl implements AnalysisService {
 		Analysis saved = analysisRepository.saveAndFlush(analysis);
 		analysisOrchestrationService.runAnalysis(saved.getId());
 		return analysisMapper.toDto(saved);
+	}
+
+	@Override
+	@Transactional
+	public AnalysisNotesResponseDTO upsertAnalysisNotes(Long analysisId, AnalysisNotesUpsertRequestDTO request) {
+		if (request == null) {
+			throw new IllegalArgumentException("Request body is required");
+		}
+
+		Analysis analysis = analysisRepository.findById(analysisId)
+				.orElseThrow(() -> new ResourceNotFoundException("Analysis not found: id=" + analysisId));
+		analysis.setAnalysisNotes(normalize(request.getNotes()));
+		Analysis saved = analysisRepository.saveAndFlush(analysis);
+		return new AnalysisNotesResponseDTO(saved.getId(), saved.getAnalysisNotes(), saved.getUpdatedAt());
+	}
+
+	private static String normalize(String value) {
+		if (value == null) {
+			return null;
+		}
+		String trimmed = value.trim();
+		return trimmed.isEmpty() ? null : trimmed;
 	}
 }

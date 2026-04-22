@@ -3,8 +3,12 @@ package com.academic.integrity.review.exception;
 import com.academic.integrity.review.dto.ErrorResponseDTO;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -31,6 +35,29 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(IllegalArgumentException.class)
 	public ResponseEntity<ErrorResponseDTO> handleIllegalArgumentException(IllegalArgumentException ex, HttpServletRequest request) {
 		return buildErrorResponse(HttpStatus.BAD_REQUEST, ex, request);
+	}
+
+	@ExceptionHandler(MethodArgumentNotValidException.class)
+	public ResponseEntity<ErrorResponseDTO> handleMethodArgumentNotValid(
+			MethodArgumentNotValidException ex,
+			HttpServletRequest request) {
+		String message = ex.getBindingResult()
+				.getFieldErrors()
+				.stream()
+				.map(this::formatFieldError)
+				.collect(Collectors.joining(", "));
+		if (message.isBlank()) {
+			message = "Request validation failed.";
+		}
+		return buildErrorResponse(HttpStatus.BAD_REQUEST, message, request);
+	}
+
+	@ExceptionHandler(HttpMessageNotReadableException.class)
+	public ResponseEntity<ErrorResponseDTO> handleHttpMessageNotReadable(
+			HttpMessageNotReadableException ex,
+			HttpServletRequest request) {
+		String message = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+		return buildErrorResponse(HttpStatus.BAD_REQUEST, message, request);
 	}
 
 	@ExceptionHandler(ResourceNotFoundException.class)
@@ -81,5 +108,13 @@ public class GlobalExceptionHandler {
 		);
 
 		return ResponseEntity.status(status).body(body);
+	}
+
+	private String formatFieldError(FieldError error) {
+		String defaultMessage = error.getDefaultMessage();
+		if (defaultMessage == null || defaultMessage.isBlank()) {
+			defaultMessage = "is invalid";
+		}
+		return error.getField() + " " + defaultMessage;
 	}
 }

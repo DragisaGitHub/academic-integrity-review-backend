@@ -38,6 +38,9 @@ public class Document {
 	@Column(name = "course", nullable = false)
 	private String course;
 
+	@Column(name = "academic_year")
+	private String academicYear;
+
 	@Column(name = "submission_date")
 	private LocalDate submissionDate;
 

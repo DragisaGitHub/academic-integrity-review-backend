@@ -18,6 +18,7 @@ public class DocumentResponseDTO {
 	private String title;
 	private String studentName;
 	private String course;
+	private String academicYear;
 	private LocalDate submissionDate;
 	private ReviewPriority reviewPriority;
 	private ReviewStatus reviewStatus;
