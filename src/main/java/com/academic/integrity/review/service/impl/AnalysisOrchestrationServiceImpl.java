@@ -33,8 +33,8 @@ public class AnalysisOrchestrationServiceImpl implements AnalysisOrchestrationSe
 
 	@Override
 	@Async("analysisTaskExecutor")
-	public void runAnalysis(Long analysisId) {
-		Analysis analysis = analysisRepository.findWithDocumentById(analysisId)
+	public void runAnalysis(Long analysisId, Long userId) {
+		Analysis analysis = analysisRepository.findWithDocumentByIdAndUser_Id(analysisId, userId)
 				.orElseThrow(() -> new ResourceNotFoundException("Analysis not found: id=" + analysisId));
 
 		try {
@@ -50,7 +50,7 @@ public class AnalysisOrchestrationServiceImpl implements AnalysisOrchestrationSe
 			analysis.setFullText(fullText);
 			updateAnalysis(analysis, AnalysisStatus.ANALYZING, null);
 
-			String prompt = promptTemplateService.buildPrompt(fullText);
+			String prompt = promptTemplateService.buildPrompt(fullText, userId);
 			LlmClientService.LlmAnalysisResult result = llmClientService.analyze(prompt);
 			findingGenerationService.generateFindings(analysis, result.content());
 

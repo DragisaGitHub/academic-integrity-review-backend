@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AnalysisResponseDTO {
 	private Long id;
-	private Long documentId;
+	private DocumentRefDTO document;
 	private LocalDate analysisDate;
 	private AnalysisStatus analysisStatus;
 	private String errorMessage;

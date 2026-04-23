@@ -1,4 +1,7 @@
 spring:
+  profiles:
+    active: test
+
   datasource:
     url: jdbc:tc:mysql:8.0.36:///academic_integrity_review?TC_REUSABLE=true
 

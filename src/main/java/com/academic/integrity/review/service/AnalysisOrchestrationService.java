@@ -2,5 +2,5 @@ package com.academic.integrity.review.service;
 
 public interface AnalysisOrchestrationService {
 
-	void runAnalysis(Long analysisId);
+	void runAnalysis(Long analysisId, Long userId);
 }

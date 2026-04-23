@@ -6,6 +6,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -16,10 +17,14 @@ import com.academic.integrity.review.domain.ApplicationSettings;
 import com.academic.integrity.review.domain.Document;
 import com.academic.integrity.review.domain.ReviewPriority;
 import com.academic.integrity.review.domain.ReviewStatus;
+import com.academic.integrity.review.domain.User;
+import com.academic.integrity.review.domain.UserRole;
 import com.academic.integrity.review.repository.ApplicationSettingsRepository;
 import com.academic.integrity.review.repository.AnalysisRepository;
 import com.academic.integrity.review.repository.DocumentRepository;
 import com.academic.integrity.review.repository.FindingRepository;
+import com.academic.integrity.review.repository.NotificationRepository;
+import com.academic.integrity.review.repository.UserRepository;
 import com.academic.integrity.review.service.LlmClientService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -60,6 +65,12 @@ class AnalysisControllerIntegrationTest {
 	@Autowired
 	private ApplicationSettingsRepository applicationSettingsRepository;
 
+	@Autowired
+	private NotificationRepository notificationRepository;
+
+	@Autowired
+	private UserRepository userRepository;
+
 	@MockBean
 	private LlmClientService llmClientService;
 
@@ -68,6 +79,7 @@ class AnalysisControllerIntegrationTest {
 
 	@AfterEach
 	void tearDown() {
+		notificationRepository.deleteAll();
 		findingRepository.deleteAll();
 		analysisRepository.deleteAll();
 		applicationSettingsRepository.deleteAll();
@@ -76,15 +88,17 @@ class AnalysisControllerIntegrationTest {
 
 	@Test
 	void getAllAnalysesReturnsPersistedAnalyses() throws Exception {
-		Document document = createDocument("Listing analyses content.");
+		User admin = ensureUser("admin", UserRole.ADMIN);
+		Document document = createDocument(admin, "Listing analyses content.");
 		Analysis analysis = new Analysis();
+		analysis.setUser(admin);
 		analysis.setDocument(document);
 		analysis.setAnalysisDate(LocalDate.now());
 		analysis.setAnalysisStatus(AnalysisStatus.COMPLETED);
 		analysis.setFullText("Listing analyses content.");
 		analysis = analysisRepository.saveAndFlush(analysis);
 
-		String response = mockMvc.perform(get("/api/analyses"))
+		String response = mockMvc.perform(get("/api/analyses").with(user("admin").roles("ADMIN")))
 				.andExpect(status().isOk())
 				.andReturn()
 				.getResponse()
@@ -93,19 +107,22 @@ class AnalysisControllerIntegrationTest {
 		JsonNode json = objectMapper.readTree(response);
 		assertThat(json).hasSize(1);
 		assertThat(json.get(0).path("id").asLong()).isEqualTo(analysis.getId());
-		assertThat(json.get(0).path("documentId").asLong()).isEqualTo(document.getId());
+		assertThat(json.get(0).path("document").path("id").asLong()).isEqualTo(document.getId());
 	}
 
 	@Test
 	void analysisNotesCanBeSavedAndLoaded() throws Exception {
-		Document document = createDocument("Notes content.");
+		User admin = ensureUser("admin", UserRole.ADMIN);
+		Document document = createDocument(admin, "Notes content.");
 		Analysis analysis = new Analysis();
+		analysis.setUser(admin);
 		analysis.setDocument(document);
 		analysis.setAnalysisDate(LocalDate.now());
 		analysis.setAnalysisStatus(AnalysisStatus.COMPLETED);
 		analysis = analysisRepository.saveAndFlush(analysis);
 
 		String saveResponse = mockMvc.perform(post("/api/analyses/{analysisId}/notes", analysis.getId())
+						.with(user("admin").roles("ADMIN"))
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 							{
@@ -120,7 +137,8 @@ class AnalysisControllerIntegrationTest {
 		JsonNode savedJson = objectMapper.readTree(saveResponse);
 		assertThat(savedJson.path("notes").asText()).isEqualTo("Professor follow-up notes for this analysis.");
 
-		String getResponse = mockMvc.perform(get("/api/analyses/{analysisId}/notes", analysis.getId()))
+		String getResponse = mockMvc.perform(get("/api/analyses/{analysisId}/notes", analysis.getId())
+						.with(user("admin").roles("ADMIN")))
 				.andExpect(status().isOk())
 				.andReturn()
 				.getResponse()
@@ -133,20 +151,24 @@ class AnalysisControllerIntegrationTest {
 
 	@Test
 	void getAnalysisNotesReturnsNotFoundWhenMissing() throws Exception {
-		Document document = createDocument("No analysis notes yet.");
+		User admin = ensureUser("admin", UserRole.ADMIN);
+		Document document = createDocument(admin, "No analysis notes yet.");
 		Analysis analysis = new Analysis();
+		analysis.setUser(admin);
 		analysis.setDocument(document);
 		analysis.setAnalysisDate(LocalDate.now());
 		analysis.setAnalysisStatus(AnalysisStatus.COMPLETED);
 		analysisRepository.saveAndFlush(analysis);
 
-		mockMvc.perform(get("/api/analyses/{analysisId}/notes", analysis.getId()))
+		mockMvc.perform(get("/api/analyses/{analysisId}/notes", analysis.getId())
+				.with(user("admin").roles("ADMIN")))
 				.andExpect(status().isNotFound());
 	}
 
 	@Test
 	void createAnalysisRunsAsyncAndPersistsFindings() throws Exception {
-		Document document = createDocument("This seminar paper makes unsupported claims without sources.");
+		User admin = ensureUser("admin", UserRole.ADMIN);
+		Document document = createDocument(admin, "This seminar paper makes unsupported claims without sources.");
 		when(llmClientService.analyze(anyString())).thenReturn(new LlmClientService.LlmAnalysisResult(
 				"{" +
 					"\"findings\":[{" +
@@ -162,6 +184,7 @@ class AnalysisControllerIntegrationTest {
 		));
 
 		MvcResult result = mockMvc.perform(post("/api/analyses")
+				.with(user("admin").roles("ADMIN"))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{" + "\"documentId\":" + document.getId() + "}"))
 				.andExpect(status().isAccepted())
@@ -169,15 +192,17 @@ class AnalysisControllerIntegrationTest {
 
 		Long analysisId = responseAnalysisId(result);
 		awaitStatus(analysisId, AnalysisStatus.COMPLETED);
+		awaitNotificationCount(1);
 
 		Analysis analysis = analysisRepository.findById(analysisId).orElseThrow();
 		assertThat(analysis.getAnalysisStatus()).isEqualTo(AnalysisStatus.COMPLETED);
 		assertThat(analysis.getModelName()).isEqualTo("test-model");
 		assertThat(analysis.getTotalTokensUsed()).isEqualTo(321);
 		assertThat(analysis.getFullText()).contains("unsupported claims");
-		assertThat(findingRepository.findAllByAnalysis_Id(analysisId)).hasSize(1);
+		assertThat(findingRepository.findAll()).hasSize(1);
 
-		String documentBody = mockMvc.perform(get("/api/documents/{id}", document.getId()))
+		String documentBody = mockMvc.perform(get("/api/documents/{id}", document.getId())
+				.with(user("admin").roles("ADMIN")))
 				.andExpect(status().isOk())
 				.andReturn()
 				.getResponse()
@@ -188,13 +213,18 @@ class AnalysisControllerIntegrationTest {
 		assertThat(documentJson.path("analysisStatus").asText()).isEqualTo("COMPLETED");
 		assertThat(documentJson.path("analysisErrorMessage").isNull()).isTrue();
 
-		mockMvc.perform(get("/api/analyses/{analysisId}/status", analysisId))
+		mockMvc.perform(get("/api/analyses/{analysisId}/status", analysisId)
+				.with(user("admin").roles("ADMIN")))
 				.andExpect(status().isOk());
 	}
 
 	@Test
-	void createAnalysisUsesEnabledSettingsModulesInPrompt() throws Exception {
+	void createAnalysisUsesSettingsOfTriggeringUserInPrompt() throws Exception {
+		User userA = ensureUser("user-a", UserRole.USER);
+		User userB = ensureUser("user-b", UserRole.USER);
+
 		ApplicationSettings settings = new ApplicationSettings();
+		settings.setUser(userA);
 		settings.setEmail("");
 		settings.setCitationAnalysis(true);
 		settings.setReferenceValidation(false);
@@ -207,7 +237,21 @@ class AnalysisControllerIntegrationTest {
 		settings.setStorageLocation("");
 		applicationSettingsRepository.saveAndFlush(settings);
 
-		Document document = createDocument("Prompt settings document content.");
+		ApplicationSettings otherUserSettings = new ApplicationSettings();
+		otherUserSettings.setUser(userB);
+		otherUserSettings.setEmail("");
+		otherUserSettings.setCitationAnalysis(false);
+		otherUserSettings.setReferenceValidation(true);
+		otherUserSettings.setFactualConsistencyReview(false);
+		otherUserSettings.setWritingStyleConsistency(true);
+		otherUserSettings.setAiReviewAssistance(false);
+		otherUserSettings.setLocalAiEnabled(false);
+		otherUserSettings.setDocumentRetentionDays(30);
+		otherUserSettings.setAutoDeleteReviewedDocuments(false);
+		otherUserSettings.setStorageLocation("");
+		applicationSettingsRepository.saveAndFlush(otherUserSettings);
+
+		Document document = createDocument(userA, "Prompt settings document content.");
 		when(llmClientService.analyze(anyString())).thenReturn(new LlmClientService.LlmAnalysisResult(
 				"{\"findings\":[]}",
 				"test-model",
@@ -215,6 +259,7 @@ class AnalysisControllerIntegrationTest {
 		));
 
 		MvcResult result = mockMvc.perform(post("/api/analyses")
+				.with(user("user-a").roles("USER"))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{" + "\"documentId\":" + document.getId() + "}"))
 				.andExpect(status().isAccepted())
@@ -222,6 +267,7 @@ class AnalysisControllerIntegrationTest {
 
 		Long analysisId = responseAnalysisId(result);
 		awaitStatus(analysisId, AnalysisStatus.COMPLETED);
+		awaitNotificationCount(1);
 
 		ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
 		verify(llmClientService).analyze(promptCaptor.capture());
@@ -230,15 +276,19 @@ class AnalysisControllerIntegrationTest {
 		assertThat(prompt).contains("Citation analysis is enabled");
 		assertThat(prompt).contains("Factual consistency review is enabled");
 		assertThat(prompt).contains("AI review assistance is enabled");
+		assertThat(prompt).doesNotContain("Reference validation is enabled");
+		assertThat(prompt).doesNotContain("Writing style consistency is enabled");
 	}
 
 	@Test
 	void retryAnalysisRequeuesFailedAnalysis() throws Exception {
-		Document document = createDocument("A short document for retry testing.");
+		User admin = ensureUser("admin", UserRole.ADMIN);
+		Document document = createDocument(admin, "A short document for retry testing.");
 		doThrow(new IllegalStateException("Simulated OpenAI failure"))
 				.when(llmClientService).analyze(anyString());
 
 		MvcResult initial = mockMvc.perform(post("/api/analyses")
+				.with(user("admin").roles("ADMIN"))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{" + "\"documentId\":" + document.getId() + "}"))
 				.andExpect(status().isAccepted())
@@ -246,6 +296,7 @@ class AnalysisControllerIntegrationTest {
 
 		Long analysisId = responseAnalysisId(initial);
 		awaitStatus(analysisId, AnalysisStatus.FAILED);
+		awaitNotificationCount(1);
 
 		Analysis failed = analysisRepository.findById(analysisId).orElseThrow();
 		assertThat(failed.getErrorMessage()).contains("Simulated OpenAI failure");
@@ -257,20 +308,84 @@ class AnalysisControllerIntegrationTest {
 				111
 		));
 
-		mockMvc.perform(post("/api/analyses/{analysisId}/retry", analysisId))
+		mockMvc.perform(post("/api/analyses/{analysisId}/retry", analysisId)
+				.with(user("admin").roles("ADMIN")))
 				.andExpect(status().isAccepted());
 
 		awaitStatus(analysisId, AnalysisStatus.COMPLETED);
+		awaitNotificationCount(2);
 		Analysis completed = analysisRepository.findById(analysisId).orElseThrow();
 		assertThat(completed.getAnalysisStatus()).isEqualTo(AnalysisStatus.COMPLETED);
 		assertThat(completed.getErrorMessage()).isNull();
 	}
 
+	@Test
+	void analysesAreScopedToOwningUser() throws Exception {
+		User userA = ensureUser("user-a", UserRole.USER);
+		ensureUser("user-b", UserRole.USER);
+		Document document = createDocument(userA, "Owned analysis content.");
+
+		when(llmClientService.analyze(anyString())).thenReturn(new LlmClientService.LlmAnalysisResult(
+				"{\"findings\":[]}",
+				"test-model",
+				12
+		));
+
+		MvcResult result = mockMvc.perform(post("/api/analyses")
+				.with(user("user-a").roles("USER"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{" + "\"documentId\":" + document.getId() + "}"))
+				.andExpect(status().isAccepted())
+				.andReturn();
+
+		Long analysisId = responseAnalysisId(result);
+		awaitStatus(analysisId, AnalysisStatus.COMPLETED);
+		awaitNotificationCount(1);
+
+		String userAList = mockMvc.perform(get("/api/analyses").with(user("user-a").roles("USER")))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		assertThat(objectMapper.readTree(userAList)).hasSize(1);
+
+		String userBList = mockMvc.perform(get("/api/analyses").with(user("user-b").roles("USER")))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		assertThat(objectMapper.readTree(userBList)).isEmpty();
+
+		mockMvc.perform(get("/api/analyses/{analysisId}/status", analysisId).with(user("user-b").roles("USER")))
+				.andExpect(status().isNotFound());
+
+		mockMvc.perform(post("/api/analyses/{analysisId}/retry", analysisId).with(user("user-b").roles("USER")))
+				.andExpect(status().isNotFound());
+	}
+
+	private User ensureUser(String username, UserRole role) {
+		return userRepository.findByUsernameIgnoreCase(username)
+				.orElseGet(() -> {
+					User user = new User();
+					user.setUsername(username);
+					user.setPasswordHash("test-hash");
+					user.setDisplayName(username);
+					user.setRole(role);
+					user.setEnabled(true);
+					return userRepository.saveAndFlush(user);
+				});
+	}
+
 	private Document createDocument(String content) throws Exception {
+		return createDocument(ensureUser("admin", UserRole.ADMIN), content);
+	}
+
+	private Document createDocument(User owner, String content) throws Exception {
 		Path file = tempDir.resolve("paper.txt");
 		Files.writeString(file, content);
 
 		Document document = new Document();
+		document.setUser(owner);
 		document.setTitle("Seminar Paper");
 		document.setStudentName("Jane Student");
 		document.setCourse("Academic Writing");
@@ -302,5 +417,17 @@ class AnalysisControllerIntegrationTest {
 			Thread.sleep(100);
 		}
 		throw new AssertionError("Timed out waiting for analysis status " + expected);
+	}
+
+	private void awaitNotificationCount(int expected) throws Exception {
+		long timeoutAt = System.currentTimeMillis() + 10000;
+		while (System.currentTimeMillis() < timeoutAt) {
+			if (notificationRepository.count() == expected) {
+				return;
+			}
+			Thread.sleep(100);
+		}
+		throw new AssertionError("Timed out waiting for notification count " + expected
+				+ ", actual count=" + notificationRepository.count());
 	}
 }

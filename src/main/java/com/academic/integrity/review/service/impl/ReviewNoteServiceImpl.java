@@ -9,6 +9,7 @@ import com.academic.integrity.review.exception.ResourceNotFoundException;
 import com.academic.integrity.review.mapper.ReviewNoteMapper;
 import com.academic.integrity.review.repository.DocumentRepository;
 import com.academic.integrity.review.repository.ReviewNoteRepository;
+import com.academic.integrity.review.service.AuthenticatedUserService;
 import com.academic.integrity.review.service.ReviewNoteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,14 +22,16 @@ public class ReviewNoteServiceImpl implements ReviewNoteService {
 	private final DocumentRepository documentRepository;
 	private final ReviewNoteRepository reviewNoteRepository;
 	private final ReviewNoteMapper reviewNoteMapper;
+	private final AuthenticatedUserService authenticatedUserService;
 
 	@Override
 	@Transactional(readOnly = true)
 	public ReviewNoteResponseDTO getByDocumentId(Long documentId) {
-		Document document = documentRepository.findById(documentId)
+		Long userId = authenticatedUserService.getAuthenticatedUserId();
+		Document document = documentRepository.findByIdAndUser_Id(documentId, userId)
 				.orElseThrow(() -> new ResourceNotFoundException("Document not found with id: " + documentId));
 
-		ReviewNote reviewNote = reviewNoteRepository.findByDocument_Id(document.getId())
+		ReviewNote reviewNote = reviewNoteRepository.findByDocument_IdAndUser_Id(document.getId(), userId)
 				.orElseThrow(() -> new ResourceNotFoundException(
 						"Review note not found for document id: " + documentId));
 
@@ -38,11 +41,13 @@ public class ReviewNoteServiceImpl implements ReviewNoteService {
 	@Override
 	@Transactional
 	public ReviewNoteResponseDTO upsertByDocumentId(Long documentId, ReviewNoteUpsertRequestDTO request) {
-		Document document = documentRepository.findById(documentId)
+		Long userId = authenticatedUserService.getAuthenticatedUserId();
+		Document document = documentRepository.findByIdAndUser_Id(documentId, userId)
 				.orElseThrow(() -> new ResourceNotFoundException("Document not found with id: " + documentId));
 
-		ReviewNote reviewNote = reviewNoteRepository.findByDocument_Id(document.getId()).orElseGet(() -> {
+		ReviewNote reviewNote = reviewNoteRepository.findByDocument_IdAndUser_Id(document.getId(), userId).orElseGet(() -> {
 			ReviewNote created = new ReviewNote();
+			created.setUser(document.getUser());
 			created.setDocument(document);
 			return created;
 		});

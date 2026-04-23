@@ -3,6 +3,7 @@ spring:
     activate:
       on-profile: prod
 
+
   datasource:
     url: ${MYSQL_URL}
     username: ${MYSQL_USERNAME}
@@ -11,6 +12,9 @@ spring:
 app:
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS}
+  security:
+    jwt-secret: ${APP_JWT_SECRET}
+    jwt-expiration-hours: ${APP_JWT_EXPIRATION_HOURS:24}
   storage:
     uploads-dir: ${APP_UPLOADS_DIR:/app/uploads}
 

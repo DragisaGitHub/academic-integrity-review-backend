@@ -3,7 +3,7 @@ spring:
     name: academic-integrity-review
 
   profiles:
-    default: dev
+    default: local
 
   servlet:
     multipart:
@@ -11,9 +11,6 @@ spring:
       max-request-size: 25MB
 
   datasource:
-    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/academic_integrity_review?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
-    username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
@@ -52,6 +49,9 @@ app:
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
     max-age: ${APP_CORS_MAX_AGE:3600}
+  security:
+    jwt-secret: ${APP_JWT_SECRET:local-dev-jwt-secret-change-me-1234567890}
+    jwt-expiration-hours: ${APP_JWT_EXPIRATION_HOURS:24}
   storage:
     uploads-dir: ${APP_UPLOADS_DIR:uploads}
 

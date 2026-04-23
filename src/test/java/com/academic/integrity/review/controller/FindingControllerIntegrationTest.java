@@ -1,6 +1,7 @@
 package com.academic.integrity.review.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -14,9 +15,12 @@ import com.academic.integrity.review.domain.FindingCategory;
 import com.academic.integrity.review.domain.FindingSeverity;
 import com.academic.integrity.review.domain.ReviewPriority;
 import com.academic.integrity.review.domain.ReviewStatus;
+import com.academic.integrity.review.domain.User;
+import com.academic.integrity.review.domain.UserRole;
 import com.academic.integrity.review.repository.AnalysisRepository;
 import com.academic.integrity.review.repository.DocumentRepository;
 import com.academic.integrity.review.repository.FindingRepository;
+import com.academic.integrity.review.repository.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDate;
@@ -26,10 +30,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@WithMockUser(username = "admin", roles = "ADMIN")
 class FindingControllerIntegrationTest {
 
 	@Autowired
@@ -47,6 +53,9 @@ class FindingControllerIntegrationTest {
 	@Autowired
 	private FindingRepository findingRepository;
 
+	@Autowired
+	private UserRepository userRepository;
+
 	@AfterEach
 	void tearDown() {
 		findingRepository.deleteAll();
@@ -56,7 +65,7 @@ class FindingControllerIntegrationTest {
 
 	@Test
 	void patchFindingPreflightIsAllowedForFrontendOrigin() throws Exception {
-		Finding finding = createFinding();
+		Finding finding = createFinding(ensureUser("admin", UserRole.ADMIN));
 
 		mockMvc.perform(options("/api/analyses/{analysisId}/findings/{findingId}",
 						finding.getAnalysis().getId(), finding.getId())
@@ -74,7 +83,7 @@ class FindingControllerIntegrationTest {
 
 	@Test
 	void getFindingsReturnsInteractionFields() throws Exception {
-		Finding finding = createFinding();
+		Finding finding = createFinding(ensureUser("admin", UserRole.ADMIN));
 
 		String response = mockMvc.perform(get("/api/analyses/{analysisId}/findings", finding.getAnalysis().getId()))
 				.andExpect(status().isOk())
@@ -91,7 +100,7 @@ class FindingControllerIntegrationTest {
 
 	@Test
 	void patchFindingUpdatesSingleField() throws Exception {
-		Finding finding = createFinding();
+		Finding finding = createFinding(ensureUser("admin", UserRole.ADMIN));
 
 		String response = mockMvc.perform(patch("/api/analyses/{analysisId}/findings/{findingId}",
 						finding.getAnalysis().getId(), finding.getId())
@@ -119,7 +128,7 @@ class FindingControllerIntegrationTest {
 
 	@Test
 	void patchFindingUpdatesBooleanCombination() throws Exception {
-		Finding finding = createFinding();
+		Finding finding = createFinding(ensureUser("admin", UserRole.ADMIN));
 
 		mockMvc.perform(patch("/api/analyses/{analysisId}/findings/{findingId}",
 						finding.getAnalysis().getId(), finding.getId())
@@ -139,7 +148,7 @@ class FindingControllerIntegrationTest {
 
 	@Test
 	void patchFindingReturnsNotFoundWhenAnalysisMissing() throws Exception {
-		Finding finding = createFinding();
+		Finding finding = createFinding(ensureUser("admin", UserRole.ADMIN));
 
 		mockMvc.perform(patch("/api/analyses/{analysisId}/findings/{findingId}", 999999L, finding.getId())
 				.contentType(MediaType.APPLICATION_JSON)
@@ -149,8 +158,8 @@ class FindingControllerIntegrationTest {
 
 	@Test
 	void patchFindingReturnsNotFoundWhenFindingDoesNotBelongToAnalysis() throws Exception {
-		Finding finding = createFinding();
-		Finding anotherFinding = createFinding();
+		Finding finding = createFinding(ensureUser("admin", UserRole.ADMIN));
+		Finding anotherFinding = createFinding(ensureUser("admin-two", UserRole.ADMIN));
 
 		mockMvc.perform(patch("/api/analyses/{analysisId}/findings/{findingId}",
 						anotherFinding.getAnalysis().getId(), finding.getId())
@@ -159,8 +168,27 @@ class FindingControllerIntegrationTest {
 				.andExpect(status().isNotFound());
 	}
 
-	private Finding createFinding() {
+	@Test
+	void findingsAreScopedToOwningUser() throws Exception {
+		User userA = ensureUser("user-a", UserRole.USER);
+		ensureUser("user-b", UserRole.USER);
+		Finding finding = createFinding(userA);
+
+		mockMvc.perform(get("/api/analyses/{analysisId}/findings", finding.getAnalysis().getId())
+						.with(user("user-b").roles("USER")))
+				.andExpect(status().isNotFound());
+
+		mockMvc.perform(patch("/api/analyses/{analysisId}/findings/{findingId}",
+						finding.getAnalysis().getId(), finding.getId())
+						.with(user("user-b").roles("USER"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{}"))
+				.andExpect(status().isNotFound());
+	}
+
+	private Finding createFinding(User owner) {
 		Document document = new Document();
+		document.setUser(owner);
 		document.setTitle("Analysis Paper");
 		document.setStudentName("Jamie Student");
 		document.setCourse("ENG-310");
@@ -170,6 +198,7 @@ class FindingControllerIntegrationTest {
 		document = documentRepository.saveAndFlush(document);
 
 		Analysis analysis = new Analysis();
+		analysis.setUser(owner);
 		analysis.setDocument(document);
 		analysis.setAnalysisDate(LocalDate.now());
 		analysis.setAnalysisStatus(AnalysisStatus.COMPLETED);
@@ -185,5 +214,18 @@ class FindingControllerIntegrationTest {
 		finding.setParagraphLocation("Paragraph 3");
 		finding.setSuggestedAction("Add a source.");
 		return findingRepository.saveAndFlush(finding);
+	}
+
+	private User ensureUser(String username, UserRole role) {
+		return userRepository.findByUsernameIgnoreCase(username)
+				.orElseGet(() -> {
+					User user = new User();
+					user.setUsername(username);
+					user.setPasswordHash("test-hash");
+					user.setDisplayName(username);
+					user.setRole(role);
+					user.setEnabled(true);
+					return userRepository.saveAndFlush(user);
+				});
 	}
 }

@@ -7,6 +7,7 @@ import com.academic.integrity.review.exception.ResourceNotFoundException;
 import com.academic.integrity.review.mapper.FindingMapper;
 import com.academic.integrity.review.repository.AnalysisRepository;
 import com.academic.integrity.review.repository.FindingRepository;
+import com.academic.integrity.review.service.AuthenticatedUserService;
 import com.academic.integrity.review.service.FindingService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -20,20 +21,23 @@ public class FindingServiceImpl implements FindingService {
 	private final AnalysisRepository analysisRepository;
 	private final FindingRepository findingRepository;
 	private final FindingMapper findingMapper;
+	private final AuthenticatedUserService authenticatedUserService;
 
 	@Override
 	public List<FindingResponseDTO> getFindingsByAnalysisId(Long analysisId) {
-		if (!analysisRepository.existsById(analysisId)) {
+		Long userId = authenticatedUserService.getAuthenticatedUserId();
+		if (!analysisRepository.existsByIdAndUser_Id(analysisId, userId)) {
 			throw new ResourceNotFoundException("Analysis not found: id=" + analysisId);
 		}
 
-		return findingMapper.toDtoList(findingRepository.findAllByAnalysis_Id(analysisId));
+		return findingMapper.toDtoList(findingRepository.findAllByAnalysis_IdAndAnalysis_User_Id(analysisId, userId));
 	}
 
 	@Override
 	@Transactional
 	public FindingResponseDTO updateFinding(Long analysisId, Long findingId, FindingUpdateRequestDTO request) {
-		if (!analysisRepository.existsById(analysisId)) {
+		Long userId = authenticatedUserService.getAuthenticatedUserId();
+		if (!analysisRepository.existsByIdAndUser_Id(analysisId, userId)) {
 			throw new ResourceNotFoundException("Analysis not found: id=" + analysisId);
 		}
 
@@ -41,7 +45,7 @@ public class FindingServiceImpl implements FindingService {
 			throw new IllegalArgumentException("Request body is required");
 		}
 
-		Finding finding = findingRepository.findByIdAndAnalysis_Id(findingId, analysisId)
+		Finding finding = findingRepository.findByIdAndAnalysis_IdAndAnalysis_User_Id(findingId, analysisId, userId)
 				.orElseThrow(() -> new ResourceNotFoundException(
 						"Finding not found: id=" + findingId + " for analysis id=" + analysisId));
 

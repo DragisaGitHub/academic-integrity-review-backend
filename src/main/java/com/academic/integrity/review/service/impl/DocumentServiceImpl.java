@@ -8,6 +8,7 @@ import com.academic.integrity.review.domain.FinalDecision;
 import com.academic.integrity.review.domain.ReviewNote;
 import com.academic.integrity.review.domain.ReviewPriority;
 import com.academic.integrity.review.domain.ReviewStatus;
+import com.academic.integrity.review.domain.User;
 import com.academic.integrity.review.dto.DocumentResponseDTO;
 import com.academic.integrity.review.dto.DocumentUpdateRequestDTO;
 import com.academic.integrity.review.dto.DocumentUploadRequestDTO;
@@ -18,6 +19,7 @@ import com.academic.integrity.review.repository.AnalysisRepository;
 import com.academic.integrity.review.repository.DocumentRepository;
 import com.academic.integrity.review.repository.FindingRepository;
 import com.academic.integrity.review.repository.ReviewNoteRepository;
+import com.academic.integrity.review.service.AuthenticatedUserService;
 import com.academic.integrity.review.service.DocumentService;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -52,6 +54,7 @@ public class DocumentServiceImpl implements DocumentService {
 	private final ReviewNoteRepository reviewNoteRepository;
 	private final DocumentMapper documentMapper;
 	private final StorageProperties storageProperties;
+	private final AuthenticatedUserService authenticatedUserService;
 
 	@Override
 	public List<DocumentResponseDTO> getAllDocuments() {
@@ -66,8 +69,9 @@ public class DocumentServiceImpl implements DocumentService {
 			String studentName,
 			String sortBy,
 			String sortDirection) {
+		Long userId = authenticatedUserService.getAuthenticatedUserId();
 		Sort sort = buildSort(sortBy, sortDirection);
-		List<Document> documents = documentRepository.findAll(sort);
+		List<Document> documents = documentRepository.findAllByUser_Id(userId, sort);
 
 		String normalizedCourse = normalize(course);
 		String normalizedStudentName = normalize(studentName);
@@ -84,18 +88,19 @@ public class DocumentServiceImpl implements DocumentService {
 				.toList();
 
 		List<DocumentResponseDTO> dtos = documentMapper.toDtoList(filtered);
-		enrichDocumentDtos(dtos);
+		enrichDocumentDtos(dtos, userId);
 		return dtos;
 	}
 
 	@Override
 	public DocumentResponseDTO getDocumentById(Long id) {
+		Long userId = authenticatedUserService.getAuthenticatedUserId();
 		Document document = documentRepository
-				.findById(id)
+				.findByIdAndUser_Id(id, userId)
 				.orElseThrow(() -> new ResourceNotFoundException("Document not found: id=" + id));
 
 		DocumentResponseDTO dto = documentMapper.toDto(document);
-		enrichDocumentDtos(List.of(dto));
+		enrichDocumentDtos(List.of(dto), userId);
 		return dto;
 	}
 
@@ -107,8 +112,10 @@ public class DocumentServiceImpl implements DocumentService {
 		validateFileType(file);
 		String originalFilename = StringUtils.cleanPath(Objects.toString(file.getOriginalFilename(), ""));
 		StoredFileInfo storedFile = storeFile(file);
+		User user = authenticatedUserService.getAuthenticatedUser();
 
 		Document document = new Document();
+		document.setUser(user);
 		document.setTitle(normalizeRequired(request.getTitle(), "title"));
 		document.setStudentName(normalizeRequired(request.getStudentName(), "studentName"));
 		document.setCourse(normalizeRequired(request.getCourse(), "course"));
@@ -124,7 +131,7 @@ public class DocumentServiceImpl implements DocumentService {
 
 		Document saved = documentRepository.save(document);
 		DocumentResponseDTO dto = documentMapper.toDto(saved);
-		enrichDocumentDtos(List.of(dto));
+		enrichDocumentDtos(List.of(dto), user.getId());
 		return dto;
 	}
 
@@ -134,8 +141,9 @@ public class DocumentServiceImpl implements DocumentService {
 		if (request == null) {
 			throw new IllegalArgumentException("Request body is required");
 		}
+		Long userId = authenticatedUserService.getAuthenticatedUserId();
 
-		Document document = documentRepository.findById(id)
+		Document document = documentRepository.findByIdAndUser_Id(id, userId)
 				.orElseThrow(() -> new ResourceNotFoundException("Document not found: id=" + id));
 
 		document.setTitle(normalizeRequired(request.getTitle(), "title"));
@@ -146,7 +154,7 @@ public class DocumentServiceImpl implements DocumentService {
 
 		Document saved = documentRepository.save(document);
 		DocumentResponseDTO dto = documentMapper.toDto(saved);
-		enrichDocumentDtos(List.of(dto));
+		enrichDocumentDtos(List.of(dto), userId);
 		return dto;
 	}
 
@@ -180,10 +188,11 @@ public class DocumentServiceImpl implements DocumentService {
 	@Override
 	@Transactional
 	public void deleteDocument(Long id) {
-		Document document = documentRepository.findById(id)
+		Long userId = authenticatedUserService.getAuthenticatedUserId();
+		Document document = documentRepository.findByIdAndUser_Id(id, userId)
 				.orElseThrow(() -> new ResourceNotFoundException("Document not found: id=" + id));
 
-		Analysis analysis = analysisRepository.findByDocument_Id(id).orElse(null);
+		Analysis analysis = analysisRepository.findByDocument_IdAndUser_Id(id, userId).orElse(null);
 		if (analysis != null && isDeleteBlocked(analysis.getAnalysisStatus())) {
 			throw new DocumentDeletionNotAllowedException(
 					"Document cannot be deleted while analysis is in progress");
@@ -191,9 +200,9 @@ public class DocumentServiceImpl implements DocumentService {
 
 		String storedPath = normalize(document.getStoredPath());
 
-        reviewNoteRepository.findByDocument_Id(id).ifPresent(reviewNoteRepository::delete);
+		reviewNoteRepository.findByDocument_IdAndUser_Id(id, userId).ifPresent(reviewNoteRepository::delete);
 
-        if (analysis != null) {
+		if (analysis != null) {
 			findingRepository.deleteByAnalysis_Id(analysis.getId());
 			analysisRepository.delete(analysis);
 		}
@@ -204,7 +213,7 @@ public class DocumentServiceImpl implements DocumentService {
 		deleteStoredFile(storedPath);
 	}
 
-	private void enrichDocumentDtos(List<DocumentResponseDTO> dtos) {
+	private void enrichDocumentDtos(List<DocumentResponseDTO> dtos, Long userId) {
 		List<Long> documentIds = dtos.stream()
 				.map(DocumentResponseDTO::getId)
 				.filter(Objects::nonNull)
@@ -213,7 +222,7 @@ public class DocumentServiceImpl implements DocumentService {
 			return;
 		}
 
-		Map<Long, Analysis> analysisByDocumentId = analysisRepository.findAllByDocument_IdIn(documentIds).stream()
+		Map<Long, Analysis> analysisByDocumentId = analysisRepository.findAllByDocument_IdInAndUser_Id(documentIds, userId).stream()
 				.filter(analysis -> analysis.getDocument() != null && analysis.getDocument().getId() != null)
 				.collect(Collectors.toMap(
 						analysis -> analysis.getDocument().getId(),
@@ -221,7 +230,7 @@ public class DocumentServiceImpl implements DocumentService {
 						(existing, replacement) -> existing
 				));
 
-		Map<Long, ReviewNote> reviewNoteByDocumentId = reviewNoteRepository.findAllByDocument_IdIn(documentIds).stream()
+		Map<Long, ReviewNote> reviewNoteByDocumentId = reviewNoteRepository.findAllByDocument_IdInAndUser_Id(documentIds, userId).stream()
 				.filter(note -> note.getDocument() != null && note.getDocument().getId() != null)
 				.collect(Collectors.toMap(
 						note -> note.getDocument().getId(),

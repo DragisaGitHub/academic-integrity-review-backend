@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -37,6 +38,11 @@ public class GlobalExceptionHandler {
 		return buildErrorResponse(HttpStatus.BAD_REQUEST, ex, request);
 	}
 
+	@ExceptionHandler(AuthenticationException.class)
+	public ResponseEntity<ErrorResponseDTO> handleAuthenticationException(AuthenticationException ex, HttpServletRequest request) {
+		return buildErrorResponse(HttpStatus.UNAUTHORIZED, ex, request);
+	}
+
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	public ResponseEntity<ErrorResponseDTO> handleMethodArgumentNotValid(
 			MethodArgumentNotValidException ex,
@@ -56,7 +62,8 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ErrorResponseDTO> handleHttpMessageNotReadable(
 			HttpMessageNotReadableException ex,
 			HttpServletRequest request) {
-		String message = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+        ex.getMostSpecificCause();
+        String message = ex.getMostSpecificCause().getMessage();
 		return buildErrorResponse(HttpStatus.BAD_REQUEST, message, request);
 	}
 
@@ -66,19 +73,18 @@ public class GlobalExceptionHandler {
 	}
 
 	@ExceptionHandler(RuntimeException.class)
-	public ResponseEntity<ErrorResponseDTO> handleRuntimeException(RuntimeException ex, HttpServletRequest request) {
+	public ResponseEntity<ErrorResponseDTO> handleRuntimeException(HttpServletRequest request) {
 		return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.", request);
 	}
 
 	@ExceptionHandler(Exception.class)
-	public ResponseEntity<ErrorResponseDTO> handleException(Exception ex, HttpServletRequest request) {
+	public ResponseEntity<ErrorResponseDTO> handleException(HttpServletRequest request) {
 		return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.", request);
 	}
 
 	@ExceptionHandler(MaxUploadSizeExceededException.class)
 	@ResponseStatus(HttpStatus.PAYLOAD_TOO_LARGE)
 	public ErrorResponseDTO handleMaxUploadSizeExceeded(
-			MaxUploadSizeExceededException ex,
 			HttpServletRequest request) {
 		return new ErrorResponseDTO(
 				Instant.now(),

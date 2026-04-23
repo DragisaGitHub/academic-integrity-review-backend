@@ -1,6 +1,7 @@
 package com.academic.integrity.review.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -16,10 +17,13 @@ import com.academic.integrity.review.domain.FindingSeverity;
 import com.academic.integrity.review.domain.ReviewNote;
 import com.academic.integrity.review.domain.ReviewPriority;
 import com.academic.integrity.review.domain.ReviewStatus;
+import com.academic.integrity.review.domain.User;
+import com.academic.integrity.review.domain.UserRole;
 import com.academic.integrity.review.repository.AnalysisRepository;
 import com.academic.integrity.review.repository.DocumentRepository;
 import com.academic.integrity.review.repository.FindingRepository;
 import com.academic.integrity.review.repository.ReviewNoteRepository;
+import com.academic.integrity.review.repository.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.file.Files;
@@ -32,11 +36,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@WithMockUser(username = "admin", roles = "ADMIN")
 class DocumentControllerIntegrationTest {
 
 	@Autowired
@@ -57,6 +63,9 @@ class DocumentControllerIntegrationTest {
 	@Autowired
 	private ObjectMapper objectMapper;
 
+	@Autowired
+	private UserRepository userRepository;
+
 	@TempDir
 	Path tempDir;
 
@@ -70,6 +79,7 @@ class DocumentControllerIntegrationTest {
 
 	@Test
 	void uploadDocumentPersistsAcademicYearAndReturnsIt() throws Exception {
+		User admin = ensureUser("admin", UserRole.ADMIN);
 		MockMultipartFile file = new MockMultipartFile(
 				"file",
 				"essay.txt",
@@ -93,12 +103,15 @@ class DocumentControllerIntegrationTest {
 
 		assertThat(json.path("academicYear").asText()).isEqualTo("2025-2026");
 		Document saved = documentRepository.findById(documentId).orElseThrow();
+		assertThat(saved.getUser().getId()).isEqualTo(admin.getId());
 		assertThat(saved.getAcademicYear()).isEqualTo("2025-2026");
 	}
 
 	@Test
 	void getAndListDocumentsIncludeAcademicYear() throws Exception {
+		User admin = ensureUser("admin", UserRole.ADMIN);
 		Document document = new Document();
+		document.setUser(admin);
 		document.setTitle("Policy Review");
 		document.setStudentName("Sam Student");
 		document.setCourse("LAW-210");
@@ -128,7 +141,9 @@ class DocumentControllerIntegrationTest {
 
 	@Test
 	void updateDocumentUpdatesAcademicYearAndEditableFields() throws Exception {
+		User admin = ensureUser("admin", UserRole.ADMIN);
 		Document document = new Document();
+		document.setUser(admin);
 		document.setTitle("Initial Title");
 		document.setStudentName("Casey Student");
 		document.setCourse("ENG-100");
@@ -186,7 +201,9 @@ class DocumentControllerIntegrationTest {
 
 	@Test
 	void exportDocumentsReturnsCsvWithAcademicYear() throws Exception {
+		User admin = ensureUser("admin", UserRole.ADMIN);
 		Document document = new Document();
+		document.setUser(admin);
 		document.setTitle("Export Title");
 		document.setStudentName("Morgan Student");
 		document.setCourse("HIST-220");
@@ -210,10 +227,12 @@ class DocumentControllerIntegrationTest {
 
 	@Test
 	void deleteDocumentRemovesAggregateAndStoredFile() throws Exception {
+		User admin = ensureUser("admin", UserRole.ADMIN);
 		Path file = tempDir.resolve("history-paper.txt");
 		Files.writeString(file, "Stored paper content");
 
 		Document document = new Document();
+		document.setUser(admin);
 		document.setTitle("History Entry");
 		document.setStudentName("Taylor Student");
 		document.setCourse("ENG-201");
@@ -229,6 +248,7 @@ class DocumentControllerIntegrationTest {
 		document = documentRepository.saveAndFlush(document);
 
 		Analysis analysis = new Analysis();
+		analysis.setUser(admin);
 		analysis.setDocument(document);
 		analysis.setAnalysisDate(LocalDate.now());
 		analysis.setAnalysisStatus(AnalysisStatus.COMPLETED);
@@ -243,6 +263,7 @@ class DocumentControllerIntegrationTest {
 		findingRepository.saveAndFlush(finding);
 
 		ReviewNote reviewNote = new ReviewNote();
+		reviewNote.setUser(admin);
 		reviewNote.setDocument(document);
 		reviewNote.setNotes("Reviewed");
 		reviewNoteRepository.saveAndFlush(reviewNote);
@@ -252,17 +273,19 @@ class DocumentControllerIntegrationTest {
 
 		assertThat(documentRepository.findById(document.getId())).isEmpty();
 		assertThat(analysisRepository.findById(analysis.getId())).isEmpty();
-		assertThat(findingRepository.findAllByAnalysis_Id(analysis.getId())).isEmpty();
-		assertThat(reviewNoteRepository.findByDocument_Id(document.getId())).isEmpty();
+		assertThat(findingRepository.findAll()).isEmpty();
+		assertThat(reviewNoteRepository.findAll()).isEmpty();
 		assertThat(Files.exists(file)).isFalse();
 	}
 
 	@Test
 	void deleteDocumentReturnsConflictWhenAnalysisIsRunning() throws Exception {
+		User admin = ensureUser("admin", UserRole.ADMIN);
 		Path file = tempDir.resolve("in-progress-paper.txt");
 		Files.writeString(file, "Stored paper content");
 
 		Document document = new Document();
+		document.setUser(admin);
 		document.setTitle("Running Analysis Entry");
 		document.setStudentName("Alex Student");
 		document.setCourse("ENG-202");
@@ -278,6 +301,7 @@ class DocumentControllerIntegrationTest {
 		document = documentRepository.saveAndFlush(document);
 
 		Analysis analysis = new Analysis();
+		analysis.setUser(admin);
 		analysis.setDocument(document);
 		analysis.setAnalysisDate(LocalDate.now());
 		analysis.setAnalysisStatus(AnalysisStatus.ANALYZING);
@@ -294,5 +318,69 @@ class DocumentControllerIntegrationTest {
 	void deleteDocumentReturnsNotFoundWhenMissing() throws Exception {
 		mockMvc.perform(delete("/api/documents/{id}", 999999L))
 				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void uploadedDocumentIsIsolatedFromOtherUsers() throws Exception {
+		ensureUser("user-a", UserRole.USER);
+		ensureUser("user-b", UserRole.USER);
+
+		MockMultipartFile file = new MockMultipartFile(
+				"file",
+				"essay.txt",
+				MediaType.TEXT_PLAIN_VALUE,
+				"Academic essay content".getBytes());
+
+		String uploadResponse = mockMvc.perform(multipart("/api/documents/upload")
+						.file(file)
+						.with(user("user-a").roles("USER"))
+						.param("title", "Private Essay")
+						.param("studentName", "Jordan Student")
+						.param("course", "PHIL-101")
+						.param("academicYear", "2025-2026")
+						.param("reviewPriority", "HIGH"))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+
+		Long documentId = objectMapper.readTree(uploadResponse).path("id").asLong();
+
+		String userAList = mockMvc.perform(get("/api/documents").with(user("user-a").roles("USER")))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		assertThat(objectMapper.readTree(userAList)).hasSize(1);
+
+		String userBList = mockMvc.perform(get("/api/documents").with(user("user-b").roles("USER")))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		assertThat(objectMapper.readTree(userBList)).isEmpty();
+
+		mockMvc.perform(get("/api/documents/{id}", documentId).with(user("user-b").roles("USER")))
+				.andExpect(status().isNotFound());
+
+		String userBExport = mockMvc.perform(get("/api/documents/export").with(user("user-b").roles("USER")))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		assertThat(userBExport).doesNotContain("Private Essay");
+	}
+
+	private User ensureUser(String username, UserRole role) {
+		return userRepository.findByUsernameIgnoreCase(username)
+				.orElseGet(() -> {
+					User user = new User();
+					user.setUsername(username);
+					user.setPasswordHash("test-hash");
+					user.setDisplayName(username);
+					user.setRole(role);
+					user.setEnabled(true);
+					return userRepository.saveAndFlush(user);
+				});
 	}
 }

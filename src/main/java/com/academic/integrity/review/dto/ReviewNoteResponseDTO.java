@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ReviewNoteResponseDTO {
 	private Long id;
-	private Long documentId;
+	private DocumentRefDTO document;
 	private String notes;
 	private boolean referencesChecked;
 	private boolean oralDefenseRequired;

@@ -26,9 +26,12 @@ public class PromptTemplateServiceImpl implements PromptTemplateService {
 	}
 
 	@Override
-	public String buildPrompt(String documentText) {
+	public String buildPrompt(String documentText, Long userId) {
 		if (documentText == null || documentText.isBlank()) {
 			throw new IllegalArgumentException("Document text is required for analysis prompt");
+		}
+		if (userId == null) {
+			throw new IllegalArgumentException("userId is required for analysis prompt");
 		}
 
 		String trimmed = documentText.trim();
@@ -38,11 +41,11 @@ public class PromptTemplateServiceImpl implements PromptTemplateService {
 				: trimmed;
 
 		String prompt = promptTemplate.replace(PLACEHOLDER, boundedText);
-		return prompt + buildModuleInstructions();
+		return prompt + buildModuleInstructions(userId);
 	}
 
-	private String buildModuleInstructions() {
-		ApplicationSettings settings = applicationSettingsRepository.findTopByOrderByIdAsc().orElse(null);
+	private String buildModuleInstructions(Long userId) {
+		ApplicationSettings settings = applicationSettingsRepository.findByUserId(userId).orElse(null);
 		if (settings == null) {
 			return "";
 		}

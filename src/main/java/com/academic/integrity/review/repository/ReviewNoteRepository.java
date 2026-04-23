@@ -7,7 +7,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ReviewNoteRepository extends JpaRepository<ReviewNote, Long> {
-	Optional<ReviewNote> findByDocument_Id(Long documentId);
+	Optional<ReviewNote> findByDocument_IdAndUser_Id(Long documentId, Long userId);
 
-	List<ReviewNote> findAllByDocument_IdIn(Collection<Long> documentIds);
+	List<ReviewNote> findAllByDocument_IdInAndUser_Id(Collection<Long> documentIds, Long userId);
 }

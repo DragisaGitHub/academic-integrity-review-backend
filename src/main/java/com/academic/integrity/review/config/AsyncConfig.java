@@ -2,6 +2,8 @@ package com.academic.integrity.review.config;
 
 import java.lang.reflect.Method;
 import java.util.concurrent.Executor;
+
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
@@ -40,7 +42,7 @@ public class AsyncConfig implements AsyncConfigurer {
 
 	private static final class LoggingAsyncUncaughtExceptionHandler implements AsyncUncaughtExceptionHandler {
 		@Override
-		public void handleUncaughtException(Throwable ex, Method method, Object... params) {
+		public void handleUncaughtException(@NonNull Throwable ex, Method method, Object @NonNull ... params) {
 			log.error("Unhandled async error in {}", method.getName(), ex);
 		}
 	}

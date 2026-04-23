@@ -16,9 +16,12 @@ import com.academic.integrity.review.domain.Document;
 import com.academic.integrity.review.domain.Notification;
 import com.academic.integrity.review.domain.ReviewPriority;
 import com.academic.integrity.review.domain.ReviewStatus;
+import com.academic.integrity.review.domain.User;
+import com.academic.integrity.review.domain.UserRole;
 import com.academic.integrity.review.repository.AnalysisRepository;
 import com.academic.integrity.review.repository.DocumentRepository;
 import com.academic.integrity.review.repository.NotificationRepository;
+import com.academic.integrity.review.repository.UserRepository;
 import com.academic.integrity.review.service.LlmClientService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,11 +37,13 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@WithMockUser(username = "admin", roles = "ADMIN")
 class NotificationControllerIntegrationTest {
 
 	@Autowired
@@ -55,6 +60,9 @@ class NotificationControllerIntegrationTest {
 
 	@Autowired
 	private AnalysisRepository analysisRepository;
+
+	@Autowired
+	private UserRepository userRepository;
 
 	@MockBean
 	private LlmClientService llmClientService;
@@ -172,10 +180,12 @@ class NotificationControllerIntegrationTest {
 	}
 
 	private Document createDocument(String content, String title) throws Exception {
+		User admin = ensureUser("admin", UserRole.ADMIN);
 		Path file = tempDir.resolve(title.replace(' ', '-') + ".txt");
 		Files.writeString(file, content);
 
 		Document document = new Document();
+		document.setUser(admin);
 		document.setTitle(title);
 		document.setStudentName("Taylor Student");
 		document.setCourse("ENG-410");
@@ -189,6 +199,19 @@ class NotificationControllerIntegrationTest {
 		document.setReviewPriority(ReviewPriority.MEDIUM);
 		document.setReviewStatus(ReviewStatus.PENDING);
 		return documentRepository.saveAndFlush(document);
+	}
+
+	private User ensureUser(String username, UserRole role) {
+		return userRepository.findByUsernameIgnoreCase(username)
+				.orElseGet(() -> {
+					User user = new User();
+					user.setUsername(username);
+					user.setPasswordHash("test-hash");
+					user.setDisplayName(username);
+					user.setRole(role);
+					user.setEnabled(true);
+					return userRepository.saveAndFlush(user);
+				});
 	}
 
 	private Long createAnalysis(Long documentId) throws Exception {

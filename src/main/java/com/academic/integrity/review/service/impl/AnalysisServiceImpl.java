@@ -16,6 +16,7 @@ import com.academic.integrity.review.repository.AnalysisRepository;
 import com.academic.integrity.review.repository.DocumentRepository;
 import com.academic.integrity.review.service.AnalysisOrchestrationService;
 import com.academic.integrity.review.service.AnalysisService;
+import com.academic.integrity.review.service.AuthenticatedUserService;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -31,11 +32,13 @@ public class AnalysisServiceImpl implements AnalysisService {
 	private final DocumentRepository documentRepository;
 	private final AnalysisMapper analysisMapper;
 	private final AnalysisOrchestrationService analysisOrchestrationService;
+	private final AuthenticatedUserService authenticatedUserService;
 
 	@Override
 	@Transactional(readOnly = true)
 	public List<AnalysisResponseDTO> getAllAnalyses() {
-		return analysisRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt")).stream()
+		Long userId = authenticatedUserService.getAuthenticatedUserId();
+		return analysisRepository.findAllByUser_Id(userId, Sort.by(Sort.Direction.DESC, "createdAt")).stream()
 				.map(analysisMapper::toDto)
 				.toList();
 	}
@@ -43,9 +46,10 @@ public class AnalysisServiceImpl implements AnalysisService {
 	@Override
 	@Transactional(readOnly = true)
 	public AnalysisResponseDTO getAnalysisByDocumentId(Long documentId) {
+		Long userId = authenticatedUserService.getAuthenticatedUserId();
 		return analysisMapper.toDto(
 				analysisRepository
-						.findByDocument_Id(documentId)
+						.findByDocument_IdAndUser_Id(documentId, userId)
 						.orElseThrow(() -> new ResourceNotFoundException("Analysis not found for documentId=" + documentId))
 		);
 	}
@@ -53,7 +57,8 @@ public class AnalysisServiceImpl implements AnalysisService {
 	@Override
 	@Transactional(readOnly = true)
 	public AnalysisStatusDTO getAnalysisStatus(Long analysisId) {
-		Analysis analysis = analysisRepository.findById(analysisId)
+		Long userId = authenticatedUserService.getAuthenticatedUserId();
+		Analysis analysis = analysisRepository.findByIdAndUser_Id(analysisId, userId)
 				.orElseThrow(() -> new ResourceNotFoundException("Analysis not found: id=" + analysisId));
 		return new AnalysisStatusDTO(analysis.getId(), analysis.getAnalysisStatus(), analysis.getErrorMessage());
 	}
@@ -61,7 +66,8 @@ public class AnalysisServiceImpl implements AnalysisService {
 	@Override
 	@Transactional(readOnly = true)
 	public AnalysisNotesResponseDTO getAnalysisNotes(Long analysisId) {
-		Analysis analysis = analysisRepository.findById(analysisId)
+		Long userId = authenticatedUserService.getAuthenticatedUserId();
+		Analysis analysis = analysisRepository.findByIdAndUser_Id(analysisId, userId)
 				.orElseThrow(() -> new ResourceNotFoundException("Analysis not found: id=" + analysisId));
 		if (analysis.getAnalysisNotes() == null || analysis.getAnalysisNotes().isBlank()) {
 			throw new ResourceNotFoundException("Analysis notes not found for analysis id=" + analysisId);
@@ -78,15 +84,18 @@ public class AnalysisServiceImpl implements AnalysisService {
 			throw new IllegalArgumentException("documentId is required");
 		}
 
+		Long triggeredByUserId = authenticatedUserService.getAuthenticatedUserId();
+
 		Long documentId = request.getDocumentId();
-		Document document = documentRepository.findById(documentId)
+		Document document = documentRepository.findByIdAndUser_Id(documentId, triggeredByUserId)
 				.orElseThrow(() -> new ResourceNotFoundException("Document not found: id=" + documentId));
 
-		analysisRepository.findByDocument_Id(documentId).ifPresent(existing -> {
+		analysisRepository.findByDocument_IdAndUser_Id(documentId, triggeredByUserId).ifPresent(existing -> {
 			throw new DuplicateAnalysisException("Analysis already exists for documentId=" + documentId);
 		});
 
 		Analysis analysis = new Analysis();
+		analysis.setUser(document.getUser());
 		analysis.setDocument(document);
 		analysis.setAnalysisDate(LocalDate.now());
 		analysis.setAnalysisStatus(AnalysisStatus.PENDING);
@@ -94,13 +103,15 @@ public class AnalysisServiceImpl implements AnalysisService {
 		analysis.setErrorMessage(null);
 
 		Analysis saved = analysisRepository.saveAndFlush(analysis);
-		analysisOrchestrationService.runAnalysis(saved.getId());
+		analysisOrchestrationService.runAnalysis(saved.getId(), triggeredByUserId);
 		return analysisMapper.toDto(saved);
 	}
 
 	@Override
 	public AnalysisResponseDTO retryAnalysis(Long analysisId) {
-		Analysis analysis = analysisRepository.findById(analysisId)
+		Long triggeredByUserId = authenticatedUserService.getAuthenticatedUserId();
+
+		Analysis analysis = analysisRepository.findWithDocumentByIdAndUser_Id(analysisId, triggeredByUserId)
 				.orElseThrow(() -> new ResourceNotFoundException("Analysis not found: id=" + analysisId));
 
 		if (analysis.getAnalysisStatus() != AnalysisStatus.FAILED) {
@@ -115,9 +126,9 @@ public class AnalysisServiceImpl implements AnalysisService {
 		analysis.setModelName(null);
 		analysis.setTotalTokensUsed(null);
 
-		Analysis saved = analysisRepository.saveAndFlush(analysis);
-		analysisOrchestrationService.runAnalysis(saved.getId());
-		return analysisMapper.toDto(saved);
+		analysisRepository.saveAndFlush(analysis);
+		analysisOrchestrationService.runAnalysis(analysis.getId(), triggeredByUserId);
+		return analysisMapper.toDto(analysis);
 	}
 
 	@Override
@@ -126,8 +137,9 @@ public class AnalysisServiceImpl implements AnalysisService {
 		if (request == null) {
 			throw new IllegalArgumentException("Request body is required");
 		}
+		Long userId = authenticatedUserService.getAuthenticatedUserId();
 
-		Analysis analysis = analysisRepository.findById(analysisId)
+		Analysis analysis = analysisRepository.findByIdAndUser_Id(analysisId, userId)
 				.orElseThrow(() -> new ResourceNotFoundException("Analysis not found: id=" + analysisId));
 		analysis.setAnalysisNotes(normalize(request.getNotes()));
 		Analysis saved = analysisRepository.saveAndFlush(analysis);

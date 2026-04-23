@@ -4,11 +4,13 @@ import com.academic.integrity.review.domain.ApplicationSettings;
 import com.academic.integrity.review.domain.ColorTheme;
 import com.academic.integrity.review.domain.DisplayDensity;
 import com.academic.integrity.review.domain.ReadingLayout;
+import com.academic.integrity.review.domain.User;
 import com.academic.integrity.review.dto.ApplicationSettingsResponseDTO;
 import com.academic.integrity.review.dto.ApplicationSettingsUpsertRequestDTO;
 import com.academic.integrity.review.mapper.ApplicationSettingsMapper;
 import com.academic.integrity.review.repository.ApplicationSettingsRepository;
 import com.academic.integrity.review.service.ApplicationSettingsService;
+import com.academic.integrity.review.service.AuthenticatedUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,24 +21,27 @@ public class ApplicationSettingsServiceImpl implements ApplicationSettingsServic
 
 	private final ApplicationSettingsRepository applicationSettingsRepository;
 	private final ApplicationSettingsMapper applicationSettingsMapper;
+	private final AuthenticatedUserService authenticatedUserService;
 
 	@Override
 	@Transactional
 	public ApplicationSettingsResponseDTO getSettings() {
-		ApplicationSettings settings = applicationSettingsRepository.findTopByOrderByIdAsc()
-				.orElseGet(() -> applicationSettingsRepository.save(defaultSettings()));
+		User user = authenticatedUserService.getAuthenticatedUser();
+		ApplicationSettings settings = applicationSettingsRepository.findByUserId(user.getId())
+				.orElseGet(() -> applicationSettingsRepository.save(defaultSettings(user)));
 		return applicationSettingsMapper.toDto(settings);
 	}
 
 	@Override
 	@Transactional
 	public ApplicationSettingsResponseDTO upsertSettings(ApplicationSettingsUpsertRequestDTO request) {
-		ApplicationSettings settings = applicationSettingsRepository.findTopByOrderByIdAsc()
-				.orElseGet(ApplicationSettings::new);
-
 		if (request == null) {
 			throw new IllegalArgumentException("Request body is required");
 		}
+
+		User user = authenticatedUserService.getAuthenticatedUser();
+		ApplicationSettings settings = applicationSettingsRepository.findByUserId(user.getId())
+				.orElseGet(() -> defaultSettings(user));
 
 		settings.setProfessorName(request.getProfessorName());
 		settings.setDepartment(request.getDepartment());
@@ -72,8 +77,9 @@ public class ApplicationSettingsServiceImpl implements ApplicationSettingsServic
 		return applicationSettingsMapper.toDto(saved);
 	}
 
-	private static ApplicationSettings defaultSettings() {
+	private static ApplicationSettings defaultSettings(User user) {
 		ApplicationSettings settings = new ApplicationSettings();
+		settings.setUser(user);
 		settings.setProfessorName("");
 		settings.setDepartment("");
 		settings.setUniversity("");
