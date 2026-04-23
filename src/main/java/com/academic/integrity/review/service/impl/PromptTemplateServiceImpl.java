@@ -41,7 +41,35 @@ public class PromptTemplateServiceImpl implements PromptTemplateService {
 				: trimmed;
 
 		String prompt = promptTemplate.replace(PLACEHOLDER, boundedText);
-		return prompt + buildModuleInstructions(userId);
+		return prompt
+				+ buildOutputContractInstructions()
+				+ buildModuleInstructions(userId);
+	}
+
+	private String buildOutputContractInstructions() {
+		return """
+
+		Output contract:
+		- Return at most %d findings.
+		- Rank findings by severity and evidentiary value, and keep only the strongest findings if more issues are visible.
+		- Keep title at or below %d characters.
+		- Keep explanation at or below %d characters.
+		- Keep excerpt at or below %d characters.
+		- Keep paragraphLocation at or below %d characters.
+		- Keep suggestedAction at or below %d characters.
+		- Use a short exact excerpt or short clause from the document, not a long passage.
+		- Escape all JSON strings correctly.
+		- Replace line breaks inside field values with spaces.
+		- If more than %d issues are visible, return only the most important %d.
+		""".formatted(
+				openAiProperties.getMaxFindings(),
+				openAiProperties.getMaxTitleCharacters(),
+				openAiProperties.getMaxExplanationCharacters(),
+				openAiProperties.getMaxExcerptCharacters(),
+				openAiProperties.getMaxParagraphLocationCharacters(),
+				openAiProperties.getMaxSuggestedActionCharacters(),
+				openAiProperties.getMaxFindings(),
+				openAiProperties.getMaxFindings());
 	}
 
 	private String buildModuleInstructions(Long userId) {

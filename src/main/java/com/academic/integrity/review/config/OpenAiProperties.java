@@ -13,7 +13,13 @@ public class OpenAiProperties {
 
 	private String apiKey = "";
 	private String model = "gpt-4o-mini";
-	private int maxTokens = 4096;
+	private int maxTokens = 2500;
 	private double temperature = 0.0;
 	private int maxDocumentCharacters = 60000;
+	private int maxFindings = 8;
+	private int maxTitleCharacters = 120;
+	private int maxExplanationCharacters = 320;
+	private int maxExcerptCharacters = 220;
+	private int maxParagraphLocationCharacters = 120;
+	private int maxSuggestedActionCharacters = 180;
 }

@@ -276,8 +276,44 @@ class AnalysisControllerIntegrationTest {
 		assertThat(prompt).contains("Citation analysis is enabled");
 		assertThat(prompt).contains("Factual consistency review is enabled");
 		assertThat(prompt).contains("AI review assistance is enabled");
+		assertThat(prompt).contains("Return at most 8 findings.");
+		assertThat(prompt).contains("Keep excerpt at or below 220 characters.");
 		assertThat(prompt).doesNotContain("Reference validation is enabled");
 		assertThat(prompt).doesNotContain("Writing style consistency is enabled");
+	}
+
+	@Test
+	void createAnalysisFailsWithSafeMessageWhenAiReturnsMalformedFindingsJson() throws Exception {
+		User admin = ensureUser("admin", UserRole.ADMIN);
+		Document document = createDocument(admin, "A longer paper body that triggers malformed output handling.");
+		when(llmClientService.analyze(anyString())).thenReturn(new LlmClientService.LlmAnalysisResult(
+				"{" +
+						"\"findings\":[{" +
+						"\"category\":\"CITATION_ISSUE\"," +
+						"\"severity\":\"HIGH\"," +
+						"\"title\":\"Truncated finding\"," +
+						"\"explanation\":\"The payload breaks before it closes",
+				"test-model",
+				450
+		));
+
+		MvcResult result = mockMvc.perform(post("/api/analyses")
+				.with(user("admin").roles("ADMIN"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{" + "\"documentId\":" + document.getId() + "}"))
+				.andExpect(status().isAccepted())
+				.andReturn();
+
+		Long analysisId = responseAnalysisId(result);
+		awaitStatus(analysisId, AnalysisStatus.FAILED);
+		awaitNotificationCount(1);
+
+		Analysis analysis = analysisRepository.findById(analysisId).orElseThrow();
+		assertThat(analysis.getErrorMessage())
+				.isEqualTo("AI returned malformed findings output. Please retry the analysis.");
+		assertThat(notificationRepository.findAll()).singleElement().satisfies(notification ->
+				assertThat(notification.getMessage())
+						.isEqualTo("Seminar Paper — AI returned malformed findings output. Please retry the analysis."));
 	}
 
 	@Test

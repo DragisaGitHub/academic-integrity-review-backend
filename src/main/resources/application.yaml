@@ -62,6 +62,12 @@ app:
 openai:
   api-key: ${OPENAI_API_KEY:}
   model: ${OPENAI_MODEL:gpt-4o-mini}
-  max-tokens: ${OPENAI_MAX_TOKENS:1500}
+  max-tokens: ${OPENAI_MAX_TOKENS:2500}
   temperature: ${OPENAI_TEMPERATURE:0.0}
   max-document-characters: ${OPENAI_MAX_DOCUMENT_CHARACTERS:25000}
+  max-findings: ${OPENAI_MAX_FINDINGS:8}
+  max-title-characters: ${OPENAI_MAX_TITLE_CHARACTERS:120}
+  max-explanation-characters: ${OPENAI_MAX_EXPLANATION_CHARACTERS:320}
+  max-excerpt-characters: ${OPENAI_MAX_EXCERPT_CHARACTERS:220}
+  max-paragraph-location-characters: ${OPENAI_MAX_PARAGRAPH_LOCATION_CHARACTERS:120}
+  max-suggested-action-characters: ${OPENAI_MAX_SUGGESTED_ACTION_CHARACTERS:180}

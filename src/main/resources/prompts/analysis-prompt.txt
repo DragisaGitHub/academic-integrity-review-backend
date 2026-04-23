@@ -8,7 +8,7 @@ Do not infer hidden facts.
 Do not invent missing evidence.
 Do not produce a finding unless the issue is directly supported by the provided text.
 
-Respond only with a valid JSON object containing exactly one top-level property:
+Respond only with a syntactically complete valid JSON object containing exactly one top-level property:
 {
   "findings": [...]
 }
@@ -93,8 +93,11 @@ If the text does not provide enough evidence for a concrete finding, return:
 - Return JSON only
 - Do not include markdown
 - Do not include commentary outside JSON
+- Do not include code fences
 - Do not include fields other than the required ones
 - Do not include duplicate findings for the same issue
+- Escape quotes, backslashes, and control characters correctly inside JSON strings
+- Replace line breaks inside field values with spaces
 - Do not produce findings based on assumptions about missing bibliography pages or missing external documents unless the issue is directly visible in the provided text
 
 Document text:

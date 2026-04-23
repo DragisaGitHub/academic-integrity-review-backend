@@ -1,7 +1,9 @@
 package com.academic.integrity.review.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -9,6 +11,7 @@ import com.academic.integrity.review.domain.Analysis;
 import com.academic.integrity.review.domain.Finding;
 import com.academic.integrity.review.domain.FindingCategory;
 import com.academic.integrity.review.domain.FindingSeverity;
+import com.academic.integrity.review.exception.AiFindingsResponseException;
 import com.academic.integrity.review.repository.FindingRepository;
 import com.academic.integrity.review.service.impl.FindingGenerationServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -81,5 +84,45 @@ class FindingGenerationServiceTest {
 		assertThat(findings.get(0).getSeverity()).isEqualTo(FindingSeverity.HIGH);
 		assertThat(findings.get(1).getCategory()).isEqualTo(FindingCategory.OTHER);
 		assertThat(findings.get(1).getSeverity()).isEqualTo(FindingSeverity.MEDIUM);
+	}
+
+	@Test
+	void generateFindingsRecoversWhenJsonIsWrappedInExtraText() {
+		Analysis analysis = new Analysis();
+		analysis.setId(100L);
+
+		String rawJson = """
+				Here is the requested payload:
+				```json
+				{"findings":[{"category":"CITATION_ISSUE","severity":"HIGH","title":"Missing citation","explanation":"A factual claim has no source.","excerpt":"A key claim without citation.","paragraphLocation":"Paragraph 1","suggestedAction":"Add a supporting citation."}]}
+				```
+				""";
+
+		when(findingRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+
+		int created = findingGenerationService.generateFindings(analysis, rawJson);
+
+		assertThat(created).isEqualTo(1);
+		verify(findingRepository).deleteByAnalysis_Id(100L);
+		verify(findingRepository).saveAll(anyList());
+	}
+
+	@Test
+	void generateFindingsThrowsTypedExceptionForMalformedJson() {
+		Analysis analysis = new Analysis();
+		analysis.setId(101L);
+
+		String rawJson = """
+				{"findings":[{"category":"CITATION_ISSUE","severity":"HIGH","title":"Broken","explanation":"The response stops early
+				""";
+
+		assertThatThrownBy(() -> findingGenerationService.generateFindings(analysis, rawJson))
+				.isInstanceOf(AiFindingsResponseException.class)
+				.hasMessageContaining("Malformed AI findings JSON")
+				.extracting(ex -> ((AiFindingsResponseException) ex).getPublicMessage())
+				.isEqualTo("AI returned malformed findings output. Please retry the analysis.");
+
+		verify(findingRepository, never()).deleteByAnalysis_Id(101L);
+		verify(findingRepository, never()).saveAll(anyList());
 	}
 }

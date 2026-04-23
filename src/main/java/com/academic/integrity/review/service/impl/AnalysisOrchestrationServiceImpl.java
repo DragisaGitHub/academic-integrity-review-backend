@@ -3,6 +3,7 @@ package com.academic.integrity.review.service.impl;
 import com.academic.integrity.review.domain.Analysis;
 import com.academic.integrity.review.domain.AnalysisStatus;
 import com.academic.integrity.review.domain.Document;
+import com.academic.integrity.review.exception.AiFindingsResponseException;
 import com.academic.integrity.review.exception.ResourceNotFoundException;
 import com.academic.integrity.review.repository.AnalysisRepository;
 import com.academic.integrity.review.service.AnalysisOrchestrationService;
@@ -17,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -76,7 +78,10 @@ public class AnalysisOrchestrationServiceImpl implements AnalysisOrchestrationSe
 	}
 
 	private static String failureMessage(Exception ex) {
+		if (ex instanceof AiFindingsResponseException aiEx) {
+			return aiEx.getPublicMessage();
+		}
 		String message = ex.getMessage();
-		return (message == null || message.isBlank()) ? "Analysis failed" : message;
+		return StringUtils.hasText(message) ? message : "Analysis failed";
 	}
 }
