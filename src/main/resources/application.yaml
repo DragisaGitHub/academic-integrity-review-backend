@@ -49,6 +49,10 @@ app:
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
     max-age: ${APP_CORS_MAX_AGE:3600}
+  errors:
+    include-debug-details: ${APP_ERRORS_INCLUDE_DEBUG_DETAILS:false}
+    include-stack-trace: ${APP_ERRORS_INCLUDE_STACK_TRACE:false}
+    request-id-header: ${APP_ERRORS_REQUEST_ID_HEADER:X-Request-Id}
   security:
     jwt-secret: ${APP_JWT_SECRET:local-dev-jwt-secret-change-me-1234567890}
     jwt-expiration-hours: ${APP_JWT_EXPIRATION_HOURS:24}
