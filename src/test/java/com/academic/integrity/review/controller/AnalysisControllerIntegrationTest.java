@@ -24,6 +24,7 @@ import com.academic.integrity.review.repository.AnalysisRepository;
 import com.academic.integrity.review.repository.DocumentRepository;
 import com.academic.integrity.review.repository.FindingRepository;
 import com.academic.integrity.review.repository.NotificationRepository;
+import com.academic.integrity.review.repository.TextSegmentRepository;
 import com.academic.integrity.review.repository.UserRepository;
 import com.academic.integrity.review.service.LlmClientService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -69,6 +70,9 @@ class AnalysisControllerIntegrationTest {
 	private NotificationRepository notificationRepository;
 
 	@Autowired
+	private TextSegmentRepository textSegmentRepository;
+
+	@Autowired
 	private UserRepository userRepository;
 
 	@MockBean
@@ -81,6 +85,7 @@ class AnalysisControllerIntegrationTest {
 	void tearDown() {
 		notificationRepository.deleteAll();
 		findingRepository.deleteAll();
+		textSegmentRepository.deleteAll();
 		analysisRepository.deleteAll();
 		applicationSettingsRepository.deleteAll();
 		documentRepository.deleteAll();
@@ -108,6 +113,120 @@ class AnalysisControllerIntegrationTest {
 		assertThat(json).hasSize(1);
 		assertThat(json.get(0).path("id").asLong()).isEqualTo(analysis.getId());
 		assertThat(json.get(0).path("document").path("id").asLong()).isEqualTo(document.getId());
+		assertThat(json.get(0).has("fullText")).isFalse();
+	}
+
+	@Test
+	void getAnalysisByDocumentIdDoesNotExposeFullText() throws Exception {
+		User admin = ensureUser("admin", UserRole.ADMIN);
+		Document document = createDocument(admin, "Document detail exposure check.");
+		Analysis analysis = new Analysis();
+		analysis.setUser(admin);
+		analysis.setDocument(document);
+		analysis.setAnalysisDate(LocalDate.now());
+		analysis.setAnalysisStatus(AnalysisStatus.COMPLETED);
+		analysis.setFullText("Document detail exposure check.");
+		analysisRepository.saveAndFlush(analysis);
+
+		String response = mockMvc.perform(get("/api/analyses/document/{documentId}", document.getId())
+					.with(user("admin").roles("ADMIN")))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+
+		JsonNode json = objectMapper.readTree(response);
+		assertThat(json.has("fullText")).isFalse();
+	}
+
+	@Test
+	void getAnalysisFullTextReturnsOnDemandForOwner() throws Exception {
+		User admin = ensureUser("admin", UserRole.ADMIN);
+		Document document = createDocument(admin, "Bridge endpoint content.");
+		Analysis analysis = new Analysis();
+		analysis.setUser(admin);
+		analysis.setDocument(document);
+		analysis.setAnalysisDate(LocalDate.now());
+		analysis.setAnalysisStatus(AnalysisStatus.COMPLETED);
+		analysis.setFullText("Bridge endpoint content.");
+		analysis = analysisRepository.saveAndFlush(analysis);
+
+		String response = mockMvc.perform(get("/api/analyses/{analysisId}/text", analysis.getId())
+					.with(user("admin").roles("ADMIN")))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+
+		JsonNode json = objectMapper.readTree(response);
+		assertThat(json.path("analysisId").asLong()).isEqualTo(analysis.getId());
+		assertThat(json.path("fullText").asText()).isEqualTo("Bridge endpoint content.");
+	}
+
+	@Test
+	void getAnalysisTextSegmentsBackfillsSegmentsAndSupportsRangeRetrieval() throws Exception {
+		User admin = ensureUser("admin", UserRole.ADMIN);
+		Document document = createDocument(admin, "unused stored text");
+		Analysis analysis = new Analysis();
+		analysis.setUser(admin);
+		analysis.setDocument(document);
+		analysis.setAnalysisDate(LocalDate.now());
+		analysis.setAnalysisStatus(AnalysisStatus.COMPLETED);
+		analysis.setFullText(
+				"First paragraph is intentionally long enough to remain a standalone segment for retrieval testing."
+						+ "\n\nTiny."
+						+ "\n\nThird paragraph is also long enough to remain visible when requesting a later segment range.");
+		analysis = analysisRepository.saveAndFlush(analysis);
+
+		String response = mockMvc.perform(get("/api/analyses/{analysisId}/text/segments", analysis.getId())
+					.with(user("admin").roles("ADMIN")))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+
+		JsonNode json = objectMapper.readTree(response);
+		assertThat(json).hasSize(2);
+		assertThat(json.get(0).path("segmentIndex").asInt()).isEqualTo(0);
+		assertThat(json.get(0).path("content").asText()).contains("Tiny.");
+		assertThat(json.get(1).path("segmentIndex").asInt()).isEqualTo(1);
+		assertThat(textSegmentRepository.countByAnalysis_Id(analysis.getId())).isEqualTo(2);
+
+		String rangeResponse = mockMvc.perform(get("/api/analyses/{analysisId}/text/segments", analysis.getId())
+					.with(user("admin").roles("ADMIN"))
+					.param("from", "1")
+					.param("to", "1"))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+
+		JsonNode rangeJson = objectMapper.readTree(rangeResponse);
+		assertThat(rangeJson).hasSize(1);
+		assertThat(rangeJson.get(0).path("segmentIndex").asInt()).isEqualTo(1);
+		assertThat(rangeJson.get(0).path("content").asText()).contains("Third paragraph");
+	}
+
+	@Test
+	void textEndpointsAreScopedToOwningUser() throws Exception {
+		User userA = ensureUser("user-a", UserRole.USER);
+		ensureUser("user-b", UserRole.USER);
+		Document document = createDocument(userA, "Private text content.");
+		Analysis analysis = new Analysis();
+		analysis.setUser(userA);
+		analysis.setDocument(document);
+		analysis.setAnalysisDate(LocalDate.now());
+		analysis.setAnalysisStatus(AnalysisStatus.COMPLETED);
+		analysis.setFullText("Private text content.\n\nSecond paragraph.");
+		analysis = analysisRepository.saveAndFlush(analysis);
+
+		mockMvc.perform(get("/api/analyses/{analysisId}/text", analysis.getId())
+					.with(user("user-b").roles("USER")))
+				.andExpect(status().isNotFound());
+
+		mockMvc.perform(get("/api/analyses/{analysisId}/text/segments", analysis.getId())
+					.with(user("user-b").roles("USER")))
+				.andExpect(status().isNotFound());
 	}
 
 	@Test
@@ -190,6 +309,9 @@ class AnalysisControllerIntegrationTest {
 				.andExpect(status().isAccepted())
 				.andReturn();
 
+		JsonNode createJson = objectMapper.readTree(result.getResponse().getContentAsString());
+		assertThat(createJson.has("fullText")).isFalse();
+
 		Long analysisId = responseAnalysisId(result);
 		awaitStatus(analysisId, AnalysisStatus.COMPLETED);
 		awaitNotificationCount(1);
@@ -216,6 +338,14 @@ class AnalysisControllerIntegrationTest {
 		mockMvc.perform(get("/api/analyses/{analysisId}/status", analysisId)
 				.with(user("admin").roles("ADMIN")))
 				.andExpect(status().isOk());
+
+		String segmentsBody = mockMvc.perform(get("/api/analyses/{analysisId}/text/segments", analysisId)
+					.with(user("admin").roles("ADMIN")))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		assertThat(objectMapper.readTree(segmentsBody)).isNotEmpty();
 	}
 
 	@Test
@@ -393,6 +523,12 @@ class AnalysisControllerIntegrationTest {
 		assertThat(objectMapper.readTree(userBList)).isEmpty();
 
 		mockMvc.perform(get("/api/analyses/{analysisId}/status", analysisId).with(user("user-b").roles("USER")))
+				.andExpect(status().isNotFound());
+
+		mockMvc.perform(get("/api/analyses/{analysisId}/text", analysisId).with(user("user-b").roles("USER")))
+				.andExpect(status().isNotFound());
+
+		mockMvc.perform(get("/api/analyses/{analysisId}/text/segments", analysisId).with(user("user-b").roles("USER")))
 				.andExpect(status().isNotFound());
 
 		mockMvc.perform(post("/api/analyses/{analysisId}/retry", analysisId).with(user("user-b").roles("USER")))

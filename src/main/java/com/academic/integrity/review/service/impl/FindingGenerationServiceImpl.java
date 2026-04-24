@@ -6,6 +6,7 @@ import com.academic.integrity.review.domain.FindingCategory;
 import com.academic.integrity.review.domain.FindingSeverity;
 import com.academic.integrity.review.exception.AiFindingsResponseException;
 import com.academic.integrity.review.repository.FindingRepository;
+import com.academic.integrity.review.service.FindingAnchorService;
 import com.academic.integrity.review.service.FindingGenerationService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -27,6 +28,7 @@ public class FindingGenerationServiceImpl implements FindingGenerationService {
 	private static final Logger log = LoggerFactory.getLogger(FindingGenerationServiceImpl.class);
 
 	private final FindingRepository findingRepository;
+	private final FindingAnchorService findingAnchorService;
 	private final ObjectMapper objectMapper;
 
 	@Override
@@ -51,7 +53,8 @@ public class FindingGenerationServiceImpl implements FindingGenerationService {
 			return 0;
 		}
 
-		findingRepository.saveAll(findings);
+		List<Finding> savedFindings = findingRepository.saveAll(findings);
+		findingAnchorService.assignAnchors(analysis, savedFindings);
 		return findings.size();
 	}
 

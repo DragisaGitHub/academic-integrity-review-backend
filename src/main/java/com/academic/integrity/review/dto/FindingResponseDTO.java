@@ -18,6 +18,9 @@ public class FindingResponseDTO {
 	private String title;
 	private String explanation;
 	private String excerpt;
+	private Integer segmentIndex;
+	private Integer excerptStartOffset;
+	private Integer excerptEndOffset;
 	private String paragraphLocation;
 	private String suggestedAction;
 	private String professorNotes;

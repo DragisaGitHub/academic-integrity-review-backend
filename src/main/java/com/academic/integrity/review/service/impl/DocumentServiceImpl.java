@@ -19,6 +19,7 @@ import com.academic.integrity.review.repository.AnalysisRepository;
 import com.academic.integrity.review.repository.DocumentRepository;
 import com.academic.integrity.review.repository.FindingRepository;
 import com.academic.integrity.review.repository.ReviewNoteRepository;
+import com.academic.integrity.review.repository.TextSegmentRepository;
 import com.academic.integrity.review.service.AuthenticatedUserService;
 import com.academic.integrity.review.service.DocumentService;
 import java.io.IOException;
@@ -52,6 +53,7 @@ public class DocumentServiceImpl implements DocumentService {
 	private final AnalysisRepository analysisRepository;
 	private final FindingRepository findingRepository;
 	private final ReviewNoteRepository reviewNoteRepository;
+	private final TextSegmentRepository textSegmentRepository;
 	private final DocumentMapper documentMapper;
 	private final StorageProperties storageProperties;
 	private final AuthenticatedUserService authenticatedUserService;
@@ -203,14 +205,20 @@ public class DocumentServiceImpl implements DocumentService {
 		reviewNoteRepository.findByDocument_IdAndUser_Id(id, userId).ifPresent(reviewNoteRepository::delete);
 
 		if (analysis != null) {
-			findingRepository.deleteByAnalysis_Id(analysis.getId());
-			analysisRepository.delete(analysis);
+			deleteAnalysisAggregate(analysis);
 		}
 
 		documentRepository.delete(document);
 		documentRepository.flush();
 
 		deleteStoredFile(storedPath);
+	}
+
+	private void deleteAnalysisAggregate(Analysis analysis) {
+		Long analysisId = analysis.getId();
+		textSegmentRepository.deleteByAnalysis_Id(analysisId);
+		findingRepository.deleteByAnalysis_Id(analysisId);
+		analysisRepository.delete(analysis);
 	}
 
 	private void enrichDocumentDtos(List<DocumentResponseDTO> dtos, Long userId) {

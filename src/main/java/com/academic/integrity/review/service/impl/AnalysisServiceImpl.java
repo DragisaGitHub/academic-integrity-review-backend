@@ -3,11 +3,13 @@ package com.academic.integrity.review.service.impl;
 import com.academic.integrity.review.domain.Analysis;
 import com.academic.integrity.review.domain.AnalysisStatus;
 import com.academic.integrity.review.domain.Document;
+import com.academic.integrity.review.dto.AnalysisFullTextDTO;
 import com.academic.integrity.review.dto.AnalysisNotesResponseDTO;
 import com.academic.integrity.review.dto.AnalysisNotesUpsertRequestDTO;
 import com.academic.integrity.review.dto.AnalysisResponseDTO;
 import com.academic.integrity.review.dto.AnalysisStatusDTO;
 import com.academic.integrity.review.dto.CreateAnalysisRequestDTO;
+import com.academic.integrity.review.dto.TextSegmentDTO;
 import com.academic.integrity.review.exception.AnalysisRetryNotAllowedException;
 import com.academic.integrity.review.exception.DuplicateAnalysisException;
 import com.academic.integrity.review.exception.ResourceNotFoundException;
@@ -17,6 +19,7 @@ import com.academic.integrity.review.repository.DocumentRepository;
 import com.academic.integrity.review.service.AnalysisOrchestrationService;
 import com.academic.integrity.review.service.AnalysisService;
 import com.academic.integrity.review.service.AuthenticatedUserService;
+import com.academic.integrity.review.service.TextSegmentService;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +36,7 @@ public class AnalysisServiceImpl implements AnalysisService {
 	private final AnalysisMapper analysisMapper;
 	private final AnalysisOrchestrationService analysisOrchestrationService;
 	private final AuthenticatedUserService authenticatedUserService;
+	private final TextSegmentService textSegmentService;
 
 	@Override
 	@Transactional(readOnly = true)
@@ -61,6 +65,21 @@ public class AnalysisServiceImpl implements AnalysisService {
 		Analysis analysis = analysisRepository.findByIdAndUser_Id(analysisId, userId)
 				.orElseThrow(() -> new ResourceNotFoundException("Analysis not found: id=" + analysisId));
 		return new AnalysisStatusDTO(analysis.getId(), analysis.getAnalysisStatus(), analysis.getErrorMessage());
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public AnalysisFullTextDTO getAnalysisFullText(Long analysisId) {
+		Long userId = authenticatedUserService.getAuthenticatedUserId();
+		Analysis analysis = analysisRepository.findByIdAndUser_Id(analysisId, userId)
+				.orElseThrow(() -> new ResourceNotFoundException("Analysis not found: id=" + analysisId));
+		return new AnalysisFullTextDTO(analysis.getId(), analysis.getFullText());
+	}
+
+	@Override
+	@Transactional
+	public List<TextSegmentDTO> getAnalysisTextSegments(Long analysisId, Integer from, Integer to) {
+		return textSegmentService.getAnalysisTextSegments(analysisId, from, to);
 	}
 
 	@Override

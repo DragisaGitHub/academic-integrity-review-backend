@@ -50,6 +50,15 @@ public class Finding {
 	@Column(name = "excerpt", columnDefinition = "LONGTEXT")
 	private String excerpt;
 
+	@Column(name = "segment_index")
+	private Integer segmentIndex;
+
+	@Column(name = "excerpt_start_offset")
+	private Integer excerptStartOffset;
+
+	@Column(name = "excerpt_end_offset")
+	private Integer excerptEndOffset;
+
 	@Column(name = "paragraph_location")
 	private String paragraphLocation;
 

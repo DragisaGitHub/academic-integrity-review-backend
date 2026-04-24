@@ -1,10 +1,12 @@
 package com.academic.integrity.review.controller;
 
+import com.academic.integrity.review.dto.AnalysisFullTextDTO;
 import com.academic.integrity.review.dto.AnalysisNotesResponseDTO;
 import com.academic.integrity.review.dto.AnalysisNotesUpsertRequestDTO;
 import com.academic.integrity.review.dto.AnalysisResponseDTO;
 import com.academic.integrity.review.dto.AnalysisStatusDTO;
 import com.academic.integrity.review.dto.CreateAnalysisRequestDTO;
+import com.academic.integrity.review.dto.TextSegmentDTO;
 import com.academic.integrity.review.service.AnalysisService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -37,6 +40,19 @@ public class AnalysisController {
 	@GetMapping("/{analysisId}/status")
 	public ResponseEntity<AnalysisStatusDTO> getAnalysisStatus(@PathVariable Long analysisId) {
 		return ResponseEntity.ok(analysisService.getAnalysisStatus(analysisId));
+	}
+
+	@GetMapping("/{analysisId}/text")
+	public ResponseEntity<AnalysisFullTextDTO> getAnalysisFullText(@PathVariable Long analysisId) {
+		return ResponseEntity.ok(analysisService.getAnalysisFullText(analysisId));
+	}
+
+	@GetMapping("/{analysisId}/text/segments")
+	public ResponseEntity<List<TextSegmentDTO>> getAnalysisTextSegments(
+			@PathVariable Long analysisId,
+			@RequestParam(required = false) Integer from,
+			@RequestParam(required = false) Integer to) {
+		return ResponseEntity.ok(analysisService.getAnalysisTextSegments(analysisId, from, to));
 	}
 
 	@GetMapping("/{analysisId}/notes")

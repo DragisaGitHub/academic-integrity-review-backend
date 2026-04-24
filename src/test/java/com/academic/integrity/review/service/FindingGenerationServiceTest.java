@@ -13,6 +13,7 @@ import com.academic.integrity.review.domain.FindingCategory;
 import com.academic.integrity.review.domain.FindingSeverity;
 import com.academic.integrity.review.exception.AiFindingsResponseException;
 import com.academic.integrity.review.repository.FindingRepository;
+import com.academic.integrity.review.service.FindingAnchorService;
 import com.academic.integrity.review.service.impl.FindingGenerationServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -29,11 +30,17 @@ class FindingGenerationServiceTest {
 	@Mock
 	private FindingRepository findingRepository;
 
+	@Mock
+	private FindingAnchorService findingAnchorService;
+
 	private FindingGenerationService findingGenerationService;
 
 	@BeforeEach
 	void setUp() {
-		findingGenerationService = new FindingGenerationServiceImpl(findingRepository, new ObjectMapper());
+		findingGenerationService = new FindingGenerationServiceImpl(
+				findingRepository,
+				findingAnchorService,
+				new ObjectMapper());
 	}
 
 	@Test
@@ -78,6 +85,7 @@ class FindingGenerationServiceTest {
 		verify(findingRepository).saveAll(captor.capture());
 
 		List<Finding> findings = captor.getValue();
+		verify(findingAnchorService).assignAnchors(analysis, findings);
 		assertThat(findings).hasSize(2);
 		assertThat(findings.get(0).getAnalysis()).isSameAs(analysis);
 		assertThat(findings.get(0).getCategory()).isEqualTo(FindingCategory.CITATION_ISSUE);
@@ -105,6 +113,7 @@ class FindingGenerationServiceTest {
 		assertThat(created).isEqualTo(1);
 		verify(findingRepository).deleteByAnalysis_Id(100L);
 		verify(findingRepository).saveAll(anyList());
+		verify(findingAnchorService).assignAnchors(analysis, anyList());
 	}
 
 	@Test
@@ -124,5 +133,6 @@ class FindingGenerationServiceTest {
 
 		verify(findingRepository, never()).deleteByAnalysis_Id(101L);
 		verify(findingRepository, never()).saveAll(anyList());
+		verify(findingAnchorService, never()).assignAnchors(analysis, anyList());
 	}
 }

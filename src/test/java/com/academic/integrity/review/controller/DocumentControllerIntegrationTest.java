@@ -19,10 +19,12 @@ import com.academic.integrity.review.domain.ReviewPriority;
 import com.academic.integrity.review.domain.ReviewStatus;
 import com.academic.integrity.review.domain.User;
 import com.academic.integrity.review.domain.UserRole;
+import com.academic.integrity.review.domain.TextSegment;
 import com.academic.integrity.review.repository.AnalysisRepository;
 import com.academic.integrity.review.repository.DocumentRepository;
 import com.academic.integrity.review.repository.FindingRepository;
 import com.academic.integrity.review.repository.ReviewNoteRepository;
+import com.academic.integrity.review.repository.TextSegmentRepository;
 import com.academic.integrity.review.repository.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -61,6 +63,9 @@ class DocumentControllerIntegrationTest {
 	private ReviewNoteRepository reviewNoteRepository;
 
 	@Autowired
+	private TextSegmentRepository textSegmentRepository;
+
+	@Autowired
 	private ObjectMapper objectMapper;
 
 	@Autowired
@@ -72,6 +77,7 @@ class DocumentControllerIntegrationTest {
 	@AfterEach
 	void tearDown() {
 		findingRepository.deleteAll();
+		textSegmentRepository.deleteAll();
 		analysisRepository.deleteAll();
 		reviewNoteRepository.deleteAll();
 		documentRepository.deleteAll();
@@ -255,6 +261,14 @@ class DocumentControllerIntegrationTest {
 		analysis.setFullText("Extracted text");
 		analysis = analysisRepository.saveAndFlush(analysis);
 
+		TextSegment segment = new TextSegment();
+		segment.setAnalysis(analysis);
+		segment.setSegmentIndex(0);
+		segment.setContent("Extracted text");
+		segment.setStartOffset(0);
+		segment.setEndOffset("Extracted text".length());
+		textSegmentRepository.saveAndFlush(segment);
+
 		Finding finding = new Finding();
 		finding.setAnalysis(analysis);
 		finding.setCategory(FindingCategory.CITATION_ISSUE);
@@ -274,6 +288,7 @@ class DocumentControllerIntegrationTest {
 		assertThat(documentRepository.findById(document.getId())).isEmpty();
 		assertThat(analysisRepository.findById(analysis.getId())).isEmpty();
 		assertThat(findingRepository.findAll()).isEmpty();
+		assertThat(textSegmentRepository.findAll()).isEmpty();
 		assertThat(reviewNoteRepository.findAll()).isEmpty();
 		assertThat(Files.exists(file)).isFalse();
 	}

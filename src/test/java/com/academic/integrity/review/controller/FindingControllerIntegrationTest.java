@@ -20,6 +20,7 @@ import com.academic.integrity.review.domain.UserRole;
 import com.academic.integrity.review.repository.AnalysisRepository;
 import com.academic.integrity.review.repository.DocumentRepository;
 import com.academic.integrity.review.repository.FindingRepository;
+import com.academic.integrity.review.repository.TextSegmentRepository;
 import com.academic.integrity.review.repository.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -54,11 +55,15 @@ class FindingControllerIntegrationTest {
 	private FindingRepository findingRepository;
 
 	@Autowired
+	private TextSegmentRepository textSegmentRepository;
+
+	@Autowired
 	private UserRepository userRepository;
 
 	@AfterEach
 	void tearDown() {
 		findingRepository.deleteAll();
+		textSegmentRepository.deleteAll();
 		analysisRepository.deleteAll();
 		documentRepository.deleteAll();
 	}
@@ -96,6 +101,13 @@ class FindingControllerIntegrationTest {
 		assertThat(json.get(0).path("professorNotes").isNull()).isTrue();
 		assertThat(json.get(0).path("reviewed").asBoolean()).isFalse();
 		assertThat(json.get(0).path("flaggedForFollowUp").asBoolean()).isFalse();
+		assertThat(json.get(0).path("segmentIndex").asInt()).isEqualTo(1);
+		assertThat(json.get(0).path("excerptStartOffset").asInt()).isGreaterThanOrEqualTo(0);
+		assertThat(json.get(0).path("excerptEndOffset").asInt())
+				.isGreaterThan(json.get(0).path("excerptStartOffset").asInt());
+		Finding anchoredFinding = findingRepository.findById(finding.getId()).orElseThrow();
+		assertThat(anchoredFinding.getSegmentIndex()).isEqualTo(1);
+		assertThat(textSegmentRepository.countByAnalysis_Id(finding.getAnalysis().getId())).isEqualTo(3);
 	}
 
 	@Test
@@ -202,6 +214,10 @@ class FindingControllerIntegrationTest {
 		analysis.setDocument(document);
 		analysis.setAnalysisDate(LocalDate.now());
 		analysis.setAnalysisStatus(AnalysisStatus.COMPLETED);
+		analysis.setFullText(
+				"Opening paragraph with enough detail for segmentation tests."
+						+ "\n\nEvidence excerpt appears inside the second paragraph for anchor matching."
+						+ "\n\nClosing paragraph with additional discussion.");
 		analysis = analysisRepository.saveAndFlush(analysis);
 
 		Finding finding = new Finding();

@@ -12,6 +12,7 @@ import com.academic.integrity.review.service.FindingGenerationService;
 import com.academic.integrity.review.service.LlmClientService;
 import com.academic.integrity.review.service.NotificationService;
 import com.academic.integrity.review.service.PromptTemplateService;
+import com.academic.integrity.review.service.TextSegmentService;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -32,6 +33,7 @@ public class AnalysisOrchestrationServiceImpl implements AnalysisOrchestrationSe
 	private final LlmClientService llmClientService;
 	private final FindingGenerationService findingGenerationService;
 	private final NotificationService notificationService;
+	private final TextSegmentService textSegmentService;
 
 	@Override
 	@Async("analysisTaskExecutor")
@@ -50,6 +52,7 @@ public class AnalysisOrchestrationServiceImpl implements AnalysisOrchestrationSe
 			}
 
 			analysis.setFullText(fullText);
+			textSegmentService.replaceSegments(analysis, fullText);
 			updateAnalysis(analysis, AnalysisStatus.ANALYZING, null);
 
 			String prompt = promptTemplateService.buildPrompt(fullText, userId);

@@ -16,7 +16,6 @@ public class AnalysisResponseDTO {
 	private LocalDate analysisDate;
 	private AnalysisStatus analysisStatus;
 	private String errorMessage;
-	private String fullText;
 	private Instant createdAt;
 	private Instant updatedAt;
 }
